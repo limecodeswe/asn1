@@ -1,8 +1,10 @@
-package asn1
+package examples
 
 import (
 	"fmt"
 	"time"
+
+	"github.com/limecodeswe/asn1"
 )
 
 // Person represents a realistic ASN.1 structure for a person
@@ -86,33 +88,33 @@ func (p *Person) SetEmployeeType(empType int) *Person {
 }
 
 // Tag returns the ASN.1 tag for Person (SEQUENCE)
-func (p *Person) Tag() Tag {
-	return NewUniversalTag(TagSequence, true)
+func (p *Person) Tag() asn1.Tag {
+	return asn1.NewUniversalTag(asn1.TagSequence, true)
 }
 
 // Encode encodes the Person as an ASN.1 SEQUENCE
 func (p *Person) Encode() ([]byte, error) {
-	seq := NewSequence()
+	seq := asn1.NewSequence()
 
 	// Add required fields
-	seq.Add(NewInteger(p.ID))
-	seq.Add(NewUTF8String(p.Name))
-	seq.Add(NewIA5String(p.Email))
-	seq.Add(NewBoolean(p.IsActive))
+	seq.Add(asn1.NewInteger(p.ID))
+	seq.Add(asn1.NewUTF8String(p.Name))
+	seq.Add(asn1.NewIA5String(p.Email))
+	seq.Add(asn1.NewBoolean(p.IsActive))
 
 	// Add optional fields with context-specific tags
 	if p.Department != nil {
-		dept := NewPrintableString(*p.Department)
-		contextTag := NewContextSpecificTag(0, false)
-		contextSpecific := NewStructured(contextTag)
+		dept := asn1.NewPrintableString(*p.Department)
+		contextTag := asn1.NewContextSpecificTag(0, false)
+		contextSpecific := asn1.NewStructured(contextTag)
 		contextSpecific.Add(dept)
 		seq.Add(contextSpecific)
 	}
 
 	if p.PhoneNumber != nil {
-		phone := NewPrintableString(*p.PhoneNumber)
-		contextTag := NewContextSpecificTag(1, false)
-		contextSpecific := NewStructured(contextTag)
+		phone := asn1.NewPrintableString(*p.PhoneNumber)
+		contextTag := asn1.NewContextSpecificTag(1, false)
+		contextSpecific := asn1.NewStructured(contextTag)
 		contextSpecific.Add(phone)
 		seq.Add(contextSpecific)
 	}
@@ -121,51 +123,51 @@ func (p *Person) Encode() ([]byte, error) {
 		// Convert time to UTCTime format (YYMMDDHHMMSSZ)
 		utcTime := p.Birthday.UTC()
 		timeStr := utcTime.Format("060102150405Z")
-		utcTimeObj := NewIA5String(timeStr) // Simplified, normally would be UTCTime type
-		contextTag := NewContextSpecificTag(2, false)
-		contextSpecific := NewStructured(contextTag)
+		utcTimeObj := asn1.NewIA5String(timeStr) // Simplified, normally would be UTCTime type
+		contextTag := asn1.NewContextSpecificTag(2, false)
+		contextSpecific := asn1.NewStructured(contextTag)
 		contextSpecific.Add(utcTimeObj)
 		seq.Add(contextSpecific)
 	}
 
 	if p.Salary != nil {
-		salary := NewInteger(*p.Salary)
-		contextTag := NewContextSpecificTag(3, false)
-		contextSpecific := NewStructured(contextTag)
+		salary := asn1.NewInteger(*p.Salary)
+		contextTag := asn1.NewContextSpecificTag(3, false)
+		contextSpecific := asn1.NewStructured(contextTag)
 		contextSpecific.Add(salary)
 		seq.Add(contextSpecific)
 	}
 
 	if p.Manager != nil {
-		contextTag := NewContextSpecificTag(4, true)
-		contextSpecific := NewStructured(contextTag)
+		contextTag := asn1.NewContextSpecificTag(4, true)
+		contextSpecific := asn1.NewStructured(contextTag)
 		contextSpecific.Add(p.Manager)
 		seq.Add(contextSpecific)
 	}
 
 	if len(p.Permissions) > 0 {
-		permSeq := NewSequence()
+		permSeq := asn1.NewSequence()
 		for _, perm := range p.Permissions {
-			permSeq.Add(NewPrintableString(perm))
+			permSeq.Add(asn1.NewPrintableString(perm))
 		}
-		contextTag := NewContextSpecificTag(5, true)
-		contextSpecific := NewStructured(contextTag)
+		contextTag := asn1.NewContextSpecificTag(5, true)
+		contextSpecific := asn1.NewStructured(contextTag)
 		contextSpecific.Add(permSeq)
 		seq.Add(contextSpecific)
 	}
 
 	if len(p.Metadata) > 0 {
-		metadata := NewOctetString(p.Metadata)
-		contextTag := NewContextSpecificTag(6, false)
-		contextSpecific := NewStructured(contextTag)
+		metadata := asn1.NewOctetString(p.Metadata)
+		contextTag := asn1.NewContextSpecificTag(6, false)
+		contextSpecific := asn1.NewStructured(contextTag)
 		contextSpecific.Add(metadata)
 		seq.Add(contextSpecific)
 	}
 
 	if p.EmployeeType != nil {
-		empType := NewInteger(int64(*p.EmployeeType))
-		contextTag := NewContextSpecificTag(7, false)
-		contextSpecific := NewStructured(contextTag)
+		empType := asn1.NewInteger(int64(*p.EmployeeType))
+		contextTag := asn1.NewContextSpecificTag(7, false)
+		contextSpecific := asn1.NewStructured(contextTag)
 		contextSpecific.Add(empType)
 		seq.Add(contextSpecific)
 	}
@@ -250,13 +252,13 @@ func (pd *PersonDirectory) Persons() []*Person {
 }
 
 // Tag returns the ASN.1 tag for PersonDirectory (SEQUENCE)
-func (pd *PersonDirectory) Tag() Tag {
-	return NewUniversalTag(TagSequence, true)
+func (pd *PersonDirectory) Tag() asn1.Tag {
+	return asn1.NewUniversalTag(asn1.TagSequence, true)
 }
 
 // Encode encodes the PersonDirectory as an ASN.1 SEQUENCE OF Person
 func (pd *PersonDirectory) Encode() ([]byte, error) {
-	seq := NewSequence()
+	seq := asn1.NewSequence()
 	for _, person := range pd.persons {
 		seq.Add(person)
 	}

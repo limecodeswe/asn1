@@ -51,6 +51,16 @@ func NewObjectIdentifierFromString(oid string) (*ASN1ObjectIdentifier, error) {
 	return NewObjectIdentifier(components), nil
 }
 
+// NewObjectIdentifierFromStringUnchecked creates a new ASN1ObjectIdentifier from a dot-separated string
+// This function panics on errors and is intended for use with known-good OID strings
+func NewObjectIdentifierFromStringUnchecked(oid string) *ASN1ObjectIdentifier {
+	result, err := NewObjectIdentifierFromString(oid)
+	if err != nil {
+		panic(fmt.Sprintf("invalid OID string %q: %v", oid, err))
+	}
+	return result
+}
+
 // Components returns the OID components
 func (o *ASN1ObjectIdentifier) Components() []int {
 	// Return a copy to prevent external modification

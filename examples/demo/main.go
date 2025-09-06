@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/limecodeswe/asn1"
+	"github.com/limecodeswe/asn1/examples"
 )
 
 func main() {
@@ -32,6 +34,9 @@ func main() {
 
 	// Demonstrate new types (CHOICE, ENUMERATED, Time types)
 	demonstrateNewTypes()
+
+	// Demonstrate complex hierarchical structure
+	demonstrateComplexHierarchy()
 }
 
 func demonstrateBasicTypes() {
@@ -118,7 +123,7 @@ func demonstratePersonExample() {
 	fmt.Println("---------------------------")
 
 	// Create a manager
-	manager := asn1.NewPerson(1, "Alice Johnson", "alice.johnson@company.com", true).
+	manager := examples.NewPerson(1, "Alice Johnson", "alice.johnson@company.com", true).
 		SetDepartment("Engineering").
 		SetPhoneNumber("+1-555-0100").
 		SetSalary(120000).
@@ -126,7 +131,7 @@ func demonstratePersonExample() {
 		SetPermissions([]string{"admin", "read", "write", "delete"})
 
 	// Create an employee with the manager
-	employee := asn1.NewPerson(123, "John Doe", "john.doe@company.com", true).
+	employee := examples.NewPerson(123, "John Doe", "john.doe@company.com", true).
 		SetDepartment("Engineering").
 		SetPhoneNumber("+1-555-0123").
 		SetSalary(85000).
@@ -146,17 +151,17 @@ func demonstratePersonExample() {
 	fmt.Println(employee.String())
 
 	// Create a person directory
-	directory := asn1.NewPersonDirectory()
+	directory := examples.NewPersonDirectory()
 	directory.AddPerson(manager)
 	directory.AddPerson(employee)
 
 	// Add some more employees
-	employee2 := asn1.NewPerson(124, "Jane Smith", "jane.smith@company.com", true).
+	employee2 := examples.NewPerson(124, "Jane Smith", "jane.smith@company.com", true).
 		SetDepartment("Sales").
 		SetEmployeeType(1). // part-time
 		SetPermissions([]string{"read"})
 
-	employee3 := asn1.NewPerson(125, "Bob Wilson", "bob.wilson@company.com", false).
+	employee3 := examples.NewPerson(125, "Bob Wilson", "bob.wilson@company.com", false).
 		SetDepartment("Marketing").
 		SetEmployeeType(2). // contractor
 		SetPermissions([]string{"read", "write"})
@@ -438,4 +443,221 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func demonstrateComplexHierarchy() {
+	fmt.Println("\n8. Complex Hierarchical Structure Example")
+	fmt.Println("==========================================")
+
+	// Create a complex nested structure that demonstrates the library's capabilities
+	// This represents a simplified X.509-like certificate structure with choices and enumerations
+
+	// Certificate Information with CHOICE and ENUMERATED types
+	certStatus := asn1.NewEnumeratedWithName(0, "VALID")
+	certAlgorithm := asn1.NewChoiceWithID(asn1.NewObjectIdentifierFromStringUnchecked("1.2.840.113549.1.1.11"), "sha256WithRSAEncryption")
+	
+	// Time validity period
+	notBefore := asn1.NewUTCTime(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
+	notAfter := asn1.NewGeneralizedTime(time.Date(2025, 12, 31, 23, 59, 59, 0, time.UTC))
+	
+	// Subject information (nested sequences)
+	subjectName := asn1.NewSequence()
+	subjectRDNs := asn1.NewSequence()
+	subjectName.Add(subjectRDNs)
+		// Add country
+		countrySeq := asn1.NewSequence()
+		countrySeq.Add(asn1.NewObjectIdentifierFromStringUnchecked("2.5.4.6")) // countryName OID
+		countrySeq.Add(asn1.NewPrintableString("US"))
+		subjectRDNs.Add(countrySeq)
+		
+		// Add organization  
+		orgSeq := asn1.NewSequence()
+		orgSeq.Add(asn1.NewObjectIdentifierFromStringUnchecked("2.5.4.10")) // organizationName OID
+		orgSeq.Add(asn1.NewUTF8String("Example Corp"))
+		subjectRDNs.Add(orgSeq)
+		
+		// Add common name
+		cnSeq := asn1.NewSequence()
+		cnSeq.Add(asn1.NewObjectIdentifierFromStringUnchecked("2.5.4.3")) // commonName OID
+		cnSeq.Add(asn1.NewUTF8String("www.example.com"))
+		subjectRDNs.Add(cnSeq)
+
+	// Extensions with context-specific tags and choices
+	extensions := asn1.NewSequence()
+	
+	// Key Usage extension (critical)
+	keyUsageExt := asn1.NewSequence()
+	keyUsageExt.Add(asn1.NewObjectIdentifierFromStringUnchecked("2.5.29.15")) // keyUsage OID
+	keyUsageExt.Add(asn1.NewBoolean(true)) // critical
+	keyUsageBits := asn1.NewBitStringFromBits("11000000") // digitalSignature + keyEncipherment
+	keyUsageExt.Add(asn1.NewOctetString(keyUsageBits.Value()))
+	extensions.Add(keyUsageExt)
+	
+	// Subject Alternative Names extension
+	sanExt := asn1.NewSequence()
+	sanExt.Add(asn1.NewObjectIdentifierFromStringUnchecked("2.5.29.17")) // subjectAltName OID
+	sanExt.Add(asn1.NewBoolean(false)) // not critical
+	
+	// SAN values (with context-specific tags)
+	sanValues := asn1.NewSequence()
+	
+	// DNS names [2] IMPLICIT IA5String
+	dnsTag := asn1.NewContextSpecificTag(2, false)
+	dnsName1 := asn1.NewStructured(dnsTag)
+	dnsName1.Add(asn1.NewIA5String("www.example.com"))
+	sanValues.Add(dnsName1)
+	
+	dnsName2 := asn1.NewStructured(dnsTag)
+	dnsName2.Add(asn1.NewIA5String("example.com"))
+	sanValues.Add(dnsName2)
+	
+	// IP address [7] IMPLICIT OCTET STRING
+	ipTag := asn1.NewContextSpecificTag(7, false)
+	ipAddr := asn1.NewStructured(ipTag)
+	ipAddr.Add(asn1.NewOctetString([]byte{192, 168, 1, 100}))
+	sanValues.Add(ipAddr)
+	
+	sanExt.Add(asn1.NewOctetString(func() []byte {
+		encoded, _ := sanValues.Encode()
+		return encoded
+	}()))
+	extensions.Add(sanExt)
+
+	// Main certificate structure
+	certificate := asn1.NewSequence()
+	
+	// TBS Certificate (To Be Signed)
+	tbsCert := asn1.NewSequence()
+	
+	// Version [0] EXPLICIT INTEGER DEFAULT v1
+	versionTag := asn1.NewContextSpecificTag(0, true)
+	version := asn1.NewStructured(versionTag)
+	version.Add(asn1.NewInteger(2)) // v3
+	tbsCert.Add(version)
+	
+	// Serial number
+	tbsCert.Add(asn1.NewInteger(123456789))
+	
+	// Signature algorithm
+	sigAlgSeq := asn1.NewSequence()
+	sigAlgSeq.Add(asn1.NewObjectIdentifierFromStringUnchecked("1.2.840.113549.1.1.11"))
+	sigAlgSeq.Add(asn1.NewNull())
+	tbsCert.Add(sigAlgSeq)
+	
+	// Issuer (same as subject for self-signed)
+	tbsCert.Add(subjectName)
+	
+	// Validity period
+	validity := asn1.NewSequence()
+	validity.Add(notBefore)
+	validity.Add(notAfter)
+	tbsCert.Add(validity)
+	
+	// Subject
+	tbsCert.Add(subjectName)
+	
+	// Subject Public Key Info
+	spki := asn1.NewSequence()
+	spkiAlg := asn1.NewSequence()
+	spkiAlg.Add(asn1.NewObjectIdentifierFromStringUnchecked("1.2.840.113549.1.1.1")) // RSA
+	spkiAlg.Add(asn1.NewNull())
+	spki.Add(spkiAlg)
+	
+	// Mock public key (normally this would be the actual key)
+	publicKeyBits := asn1.NewBitStringFromBits("1100000000110000")
+	spki.Add(publicKeyBits)
+	tbsCert.Add(spki)
+	
+	// Extensions [3] EXPLICIT SEQUENCE OF Extension
+	extTag := asn1.NewContextSpecificTag(3, true)
+	extWrapper := asn1.NewStructured(extTag)
+	extWrapper.Add(extensions)
+	tbsCert.Add(extWrapper)
+	
+	// Add TBS certificate to main certificate
+	certificate.Add(tbsCert)
+	
+	// Signature algorithm (again)
+	certificate.Add(sigAlgSeq)
+	
+	// Signature value (mock)
+	signature := asn1.NewBitStringFromBits("1111000011110000111100001111000011110000111100001111000011110000")
+	certificate.Add(signature)
+
+	// Add some metadata sequence with choices and enumerations
+	metadata := asn1.NewSequence()
+	metadata.Add(certStatus) // ENUMERATED status
+	metadata.Add(certAlgorithm) // CHOICE algorithm
+	
+	// Trust level with nested choices
+	trustLevelChoice := asn1.NewChoiceWithID(asn1.NewEnumeratedWithName(2, "HIGH_TRUST"), "trust_level")
+	metadata.Add(trustLevelChoice)
+	
+	// Timestamps
+	issuedAt := asn1.NewUTCTimeNow()
+	lastVerified := asn1.NewGeneralizedTimeNow()
+	metadata.Add(issuedAt)
+	metadata.Add(lastVerified)
+
+	// Final wrapper structure
+	finalStructure := asn1.NewSequence()
+	finalStructure.Add(certificate)
+	finalStructure.Add(metadata)
+
+	fmt.Println("Complex Hierarchical Structure:")
+	fmt.Println("-------------------------------")
+	fmt.Println("Structure: X.509-like Certificate with Extensions, Choices, and Enumerations")
+	fmt.Println()
+	fmt.Printf("%s\n", finalStructure.String())
+	
+	fmt.Println("\nCompact View:")
+	fmt.Printf("%s\n", finalStructure.CompactString())
+
+	// Encoding test
+	encoded, err := finalStructure.Encode()
+	if err != nil {
+		log.Printf("Encoding failed: %v", err)
+	} else {
+		fmt.Printf("\nEncoded to %d bytes\n", len(encoded))
+		fmt.Printf("First 128 bytes: %02X\n", encoded[:min(128, len(encoded))])
+		
+		// Decode back to verify round-trip
+		decoded, err := asn1.DecodeAll(encoded)
+		if err != nil {
+			log.Printf("Decoding failed: %v", err)
+		} else {
+			fmt.Printf("Successfully decoded %d top-level objects\n", len(decoded))
+			
+			// Show the structure depth
+			fmt.Println("\nStructure Analysis:")
+			analyzeStructureDepth(finalStructure, 0)
+		}
+	}
+}
+
+func analyzeStructureDepth(element asn1.ASN1Object, depth int) {
+	indent := strings.Repeat("  ", depth)
+	
+	switch v := element.(type) {
+	case *asn1.ASN1Structured:
+		// Create a simple tag description since Tag doesn't have String()
+		tagDesc := fmt.Sprintf("Tag{class=%d, number=%d, constructed=%t}", 
+			v.Tag().Class, v.Tag().Number, v.Tag().Constructed)
+		elementCount := len(v.Elements())
+		fmt.Printf("%s%s (%d elements)\n", indent, tagDesc, elementCount)
+		for _, elem := range v.Elements() {
+			analyzeStructureDepth(elem, depth+1)
+		}
+	case *asn1.ASN1Choice:
+		fmt.Printf("%s%s -> %s\n", indent, "CHOICE", v.String())
+		analyzeStructureDepth(v.Value(), depth+1)
+	case *asn1.ASN1Enumerated:
+		fmt.Printf("%s%s\n", indent, v.String())
+	case *asn1.ASN1UTCTime:
+		fmt.Printf("%s%s\n", indent, v.String())
+	case *asn1.ASN1GeneralizedTime:
+		fmt.Printf("%s%s\n", indent, v.String())
+	default:
+		fmt.Printf("%s%s\n", indent, element.String())
+	}
 }
