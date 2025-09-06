@@ -124,6 +124,16 @@ func (b *ASN1BitString) String() string {
 	return fmt.Sprintf("BIT STRING '%s...' (%d bits)", bitStr[:32], b.BitLength())
 }
 
+// TaggedString returns a string representation with tag information
+func (b *ASN1BitString) TaggedString() string {
+	bitStr := b.ToBitString()
+	if len(bitStr) <= 32 {
+		return fmt.Sprintf("%s BIT STRING: '%s'", b.Tag().TagString(), bitStr)
+	}
+	// For long bit strings, show first few bits and the length
+	return fmt.Sprintf("%s BIT STRING: '%s...' (%d bits)", b.Tag().TagString(), bitStr[:32], b.BitLength())
+}
+
 // CompactString returns a compact hex representation
 func (b *ASN1BitString) CompactString() string {
 	return fmt.Sprintf("BIT STRING (0x%x, %d unused bits)", b.value, b.unusedBits)

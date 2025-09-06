@@ -78,6 +78,15 @@ func (o *ASN1ObjectIdentifier) String() string {
 	return fmt.Sprintf("OBJECT IDENTIFIER %s", strings.Join(parts, "."))
 }
 
+// TaggedString returns a string representation with tag information
+func (o *ASN1ObjectIdentifier) TaggedString() string {
+	parts := make([]string, len(o.components))
+	for i, component := range o.components {
+		parts[i] = strconv.Itoa(component)
+	}
+	return fmt.Sprintf("%s OBJECT IDENTIFIER: %s", o.Tag().TagString(), strings.Join(parts, "."))
+}
+
 // DotNotation returns just the dot-separated string without the type prefix
 func (o *ASN1ObjectIdentifier) DotNotation() string {
 	parts := make([]string, len(o.components))

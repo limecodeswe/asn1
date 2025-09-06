@@ -76,6 +76,14 @@ func (e *ASN1Enumerated) String() string {
 	return fmt.Sprintf("ENUMERATED{%s}", e.value.String())
 }
 
+// TaggedString returns a string representation with tag information
+func (e *ASN1Enumerated) TaggedString() string {
+	if e.name != "" {
+		return fmt.Sprintf("%s ENUMERATED: %s (%s)", e.Tag().TagString(), e.name, e.value.String())
+	}
+	return fmt.Sprintf("%s ENUMERATED: %s", e.Tag().TagString(), e.value.String())
+}
+
 // DecodeEnumeratedValue decodes the value bytes of an ENUMERATED
 func DecodeEnumeratedValue(data []byte) (*big.Int, error) {
 	// ENUMERATED uses the same encoding as INTEGER

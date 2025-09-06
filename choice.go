@@ -73,6 +73,17 @@ func (c *ASN1Choice) String() string {
 	return fmt.Sprintf("CHOICE{%s}", c.value.String())
 }
 
+// TaggedString returns a string representation with tag information
+func (c *ASN1Choice) TaggedString() string {
+	if c.value == nil {
+		return fmt.Sprintf("%s CHOICE: empty", c.Tag().TagString())
+	}
+	if c.choiceID != "" {
+		return fmt.Sprintf("%s CHOICE: %s -> %s", c.Tag().TagString(), c.choiceID, c.value.TaggedString())
+	}
+	return fmt.Sprintf("%s CHOICE: %s", c.Tag().TagString(), c.value.TaggedString())
+}
+
 // DecodeChoice attempts to decode a CHOICE from the given data
 // Since CHOICE is encoded as the chosen alternative directly, this function
 // tries to match against a list of possible alternatives

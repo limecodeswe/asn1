@@ -54,6 +54,11 @@ func (u *ASN1UTCTime) String() string {
 	return fmt.Sprintf("UTCTime{%s}", u.time.Format(time.RFC3339))
 }
 
+// TaggedString returns a string representation with tag information
+func (u *ASN1UTCTime) TaggedString() string {
+	return fmt.Sprintf("%s UTCTime: %s", u.Tag().TagString(), u.time.Format(time.RFC3339))
+}
+
 // ASN1GeneralizedTime represents an ASN.1 GeneralizedTime value
 type ASN1GeneralizedTime struct {
 	time time.Time
@@ -99,6 +104,11 @@ func (g *ASN1GeneralizedTime) Encode() ([]byte, error) {
 // String returns a string representation of the GeneralizedTime
 func (g *ASN1GeneralizedTime) String() string {
 	return fmt.Sprintf("GeneralizedTime{%s}", g.time.Format(time.RFC3339))
+}
+
+// TaggedString returns a string representation with tag information
+func (g *ASN1GeneralizedTime) TaggedString() string {
+	return fmt.Sprintf("%s GeneralizedTime: %s", g.Tag().TagString(), g.time.Format(time.RFC3339))
 }
 
 // DecodeUTCTime decodes a UTCTime from BER data

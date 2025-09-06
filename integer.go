@@ -118,6 +118,11 @@ func (i *ASN1Integer) String() string {
 	return fmt.Sprintf("INTEGER %s", i.value.String())
 }
 
+// TaggedString returns a string representation with tag information
+func (i *ASN1Integer) TaggedString() string {
+	return fmt.Sprintf("%s INTEGER: %s", i.Tag().TagString(), i.value.String())
+}
+
 // DecodeIntegerValue decodes an integer value from raw bytes
 func DecodeIntegerValue(data []byte) (*big.Int, error) {
 	if len(data) == 0 {

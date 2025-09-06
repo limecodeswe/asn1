@@ -61,6 +61,21 @@ func (o *ASN1OctetString) String() string {
 	return fmt.Sprintf("OCTET STRING %s", strings.Join(hexParts, " "))
 }
 
+// TaggedString returns a string representation with tag information
+func (o *ASN1OctetString) TaggedString() string {
+	// Try to display as a readable string if all bytes are printable
+	if o.isPrintable() {
+		return fmt.Sprintf("%s OCTET STRING: \"%s\"", o.Tag().TagString(), string(o.value))
+	}
+	
+	// Otherwise, display as hex
+	var hexParts []string
+	for _, b := range o.value {
+		hexParts = append(hexParts, fmt.Sprintf("%02X", b))
+	}
+	return fmt.Sprintf("%s OCTET STRING: %s", o.Tag().TagString(), strings.Join(hexParts, " "))
+}
+
 // CompactString returns a compact hex representation
 func (o *ASN1OctetString) CompactString() string {
 	return fmt.Sprintf("OCTET STRING (0x%x)", o.value)

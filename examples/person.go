@@ -227,6 +227,11 @@ func (p *Person) CompactString() string {
 		p.ID, p.Name, p.Email, p.IsActive)
 }
 
+// TaggedString returns a string representation with tag information
+func (p *Person) TaggedString() string {
+	return fmt.Sprintf("%s Person: %s", p.Tag().TagString(), p.CompactString())
+}
+
 // PersonDirectory represents a collection of persons (demonstrates SEQUENCE OF)
 type PersonDirectory struct {
 	persons []*Person
@@ -278,4 +283,9 @@ func (pd *PersonDirectory) CompactString() string {
 	}
 	result += "}"
 	return result
+}
+
+// TaggedString returns a string representation with tag information
+func (pd *PersonDirectory) TaggedString() string {
+	return fmt.Sprintf("%s PersonDirectory: (%d persons)", pd.Tag().TagString(), len(pd.persons))
 }

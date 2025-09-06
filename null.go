@@ -26,6 +26,11 @@ func (n *ASN1Null) String() string {
 	return "NULL"
 }
 
+// TaggedString returns a string representation with tag information
+func (n *ASN1Null) TaggedString() string {
+	return fmt.Sprintf("%s NULL", n.Tag().TagString())
+}
+
 // DecodeNull decodes an ASN1Null from BER-encoded data
 func DecodeNull(data []byte) (*ASN1Null, int, error) {
 	asn1Value, consumed, err := DecodeTLV(data)

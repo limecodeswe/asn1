@@ -38,6 +38,15 @@ func (b *ASN1Boolean) String() string {
 	return fmt.Sprintf("BOOLEAN %t", b.value)
 }
 
+// TaggedString returns a string representation with tag information
+func (b *ASN1Boolean) TaggedString() string {
+	valueStr := "TRUE"
+	if !b.value {
+		valueStr = "FALSE"
+	}
+	return fmt.Sprintf("%s BOOLEAN: %s", b.Tag().TagString(), valueStr)
+}
+
 // DecodeBooleanValue decodes a boolean value from raw bytes
 func DecodeBooleanValue(data []byte) (bool, error) {
 	if len(data) != 1 {

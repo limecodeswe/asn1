@@ -38,6 +38,11 @@ func (s *ASN1UTF8String) String() string {
 	return fmt.Sprintf("UTF8String \"%s\"", s.value)
 }
 
+// TaggedString returns a string representation with tag information
+func (s *ASN1UTF8String) TaggedString() string {
+	return fmt.Sprintf("%s UTF8String: \"%s\"", s.Tag().TagString(), s.value)
+}
+
 // ASN1PrintableString represents an ASN.1 PrintableString
 type ASN1PrintableString struct {
 	value string
@@ -71,6 +76,11 @@ func (s *ASN1PrintableString) String() string {
 	return fmt.Sprintf("PrintableString \"%s\"", s.value)
 }
 
+// TaggedString returns a string representation with tag information
+func (s *ASN1PrintableString) TaggedString() string {
+	return fmt.Sprintf("%s PrintableString: \"%s\"", s.Tag().TagString(), s.value)
+}
+
 // ASN1IA5String represents an ASN.1 IA5String (ASCII string)
 type ASN1IA5String struct {
 	value string
@@ -102,6 +112,11 @@ func (s *ASN1IA5String) Encode() ([]byte, error) {
 // String returns a string representation
 func (s *ASN1IA5String) String() string {
 	return fmt.Sprintf("IA5String \"%s\"", s.value)
+}
+
+// TaggedString returns a string representation with tag information
+func (s *ASN1IA5String) TaggedString() string {
+	return fmt.Sprintf("%s IA5String: \"%s\"", s.Tag().TagString(), s.value)
 }
 
 // Helper functions for string validation
