@@ -271,3 +271,31 @@ func WriteToWriter(w io.Writer, obj ASN1Object) error {
 	
 	return nil
 }
+
+// Convenience functions for easy encoding/decoding
+
+// Encode encodes any ASN1Object to bytes - convenience wrapper
+func Encode(obj ASN1Object) ([]byte, error) {
+	return obj.Encode()
+}
+
+// Decode decodes the first ASN1Object from bytes - convenience wrapper  
+func Decode(data []byte) (ASN1Object, error) {
+	objects, err := DecodeAll(data)
+	if err != nil {
+		return nil, err
+	}
+	if len(objects) == 0 {
+		return nil, fmt.Errorf("no objects found in data")
+	}
+	return objects[0], nil
+}
+
+// EncodeToHex encodes an ASN1Object and returns hex string representation
+func EncodeToHex(obj ASN1Object) (string, error) {
+	encoded, err := obj.Encode()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%02X", encoded), nil
+}

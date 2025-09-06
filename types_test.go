@@ -2,6 +2,7 @@ package asn1
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -496,4 +497,553 @@ func TestGeneralizedTime(t *testing.T) {
 	t.Logf("GeneralizedTime encoded to %d bytes", len(encoded))
 	t.Logf("GeneralizedTime string: %s", genTime.String())
 	t.Logf("Current time encoded to %d bytes", len(encodedNow))
+}
+
+// Comprehensive round-trip tests demonstrating real-world usage scenarios
+func TestComplexStructureRoundTrip(t *testing.T) {
+	// Test a realistic complex structure that might be used in applications
+	// Simulating a certificate or document structure
+	
+	// Create a complex nested structure
+	document := NewSequence()
+	
+	// Document metadata
+	metadata := NewSequence()
+	metadata.Add(NewInteger(1)) // version
+	metadata.Add(NewUTF8String("Document Title"))
+	metadata.Add(NewUTCTime(time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)))
+	metadata.Add(NewBoolean(true)) // is active
+	document.Add(metadata)
+	
+	// Author information with choices
+	author := NewSequence()
+	nameChoice := NewChoiceWithID(NewUTF8String("John Doe"), "full_name")
+	statusEnum := NewEnumeratedWithName(1, "ACTIVE")
+	author.Add(nameChoice)
+	author.Add(statusEnum)
+	author.Add(NewIA5String("john.doe@example.com"))
+	document.Add(author)
+	
+	// Optional fields with context-specific tags
+	optionalData := NewSequence()
+	
+	// [CONTEXT 0] - optional description
+	contextTag0 := NewContextSpecificTag(0, true)
+	description := NewStructured(contextTag0)
+	description.Add(NewUTF8String("This is an optional description"))
+	optionalData.Add(description)
+	
+	// [CONTEXT 1] - optional binary data
+	contextTag1 := NewContextSpecificTag(1, true)
+	binaryData := NewStructured(contextTag1)
+	binaryData.Add(NewOctetString([]byte{0x01, 0x02, 0x03, 0x04}))
+	optionalData.Add(binaryData)
+	
+	document.Add(optionalData)
+	
+	// Add some object identifiers
+	oids := NewSequence()
+	oid1, _ := NewObjectIdentifierFromString("1.2.840.113549.1.1.11")
+	oid2, _ := NewObjectIdentifierFromString("2.5.4.3")
+	oids.Add(oid1)
+	oids.Add(oid2)
+	document.Add(oids)
+	
+	t.Logf("Original structure:\n%s", document.String())
+	
+	// 1. ENCODE the complete structure
+	encoded, err := document.Encode()
+	if err != nil {
+		t.Fatalf("Failed to encode structure: %v", err)
+	}
+	
+	t.Logf("Encoded to %d bytes", len(encoded))
+	
+	// 2. DECODE the structure back using generic decoder
+	decodedObjects, err := DecodeAll(encoded)
+	if err != nil {
+		t.Fatalf("Failed to decode structure: %v", err)
+	}
+	
+	if len(decodedObjects) != 1 {
+		t.Fatalf("Expected 1 decoded object, got %d", len(decodedObjects))
+	}
+	
+	// 3. Verify the decoded structure
+	decodedDoc := decodedObjects[0]
+	t.Logf("Decoded structure:\n%s", decodedDoc.String())
+	
+	// 4. Re-encode to verify round-trip integrity
+	reencoded, err := decodedDoc.Encode()
+	if err != nil {
+		t.Fatalf("Failed to re-encode structure: %v", err)
+	}
+	
+	// 5. Verify byte-for-byte equality
+	if len(encoded) != len(reencoded) {
+		t.Errorf("Round-trip size mismatch: original %d bytes, reencoded %d bytes", len(encoded), len(reencoded))
+	} else {
+		for i := range encoded {
+			if encoded[i] != reencoded[i] {
+				t.Errorf("Round-trip data mismatch at byte %d: original %02X, reencoded %02X", i, encoded[i], reencoded[i])
+				break
+			}
+		}
+	}
+	
+	t.Log("✓ Complex structure round-trip test passed")
+}
+
+func TestApplicationUsageScenarios(t *testing.T) {
+	t.Run("UserProfile", func(t *testing.T) {
+		// Simulate encoding/decoding a user profile in an application
+		
+		// Create user profile structure
+		profile := NewSequence()
+		profile.Add(NewInteger(12345)) // user ID
+		profile.Add(NewUTF8String("alice@example.com")) // email
+		profile.Add(NewBoolean(true)) // is verified
+		
+		// Preferences as enumerated values
+		preferences := NewSequence()
+		themeEnum := NewEnumeratedWithName(0, "DARK")
+		languageEnum := NewEnumeratedWithName(1, "ENGLISH")
+		preferences.Add(themeEnum)
+		preferences.Add(languageEnum)
+		profile.Add(preferences)
+		
+		// Metadata with timestamp
+		metadata := NewSequence()
+		metadata.Add(NewUTCTimeNow())
+		metadata.Add(NewOctetString([]byte("session-token-123")))
+		profile.Add(metadata)
+		
+		// Application would encode this to store/transmit
+		encoded, err := profile.Encode()
+		if err != nil {
+			t.Fatalf("Application encoding failed: %v", err)
+		}
+		
+		t.Logf("User profile encoded to %d bytes", len(encoded))
+		
+		// Application would decode this when retrieving
+		decoded, err := DecodeAll(encoded)
+		if err != nil {
+			t.Fatalf("Application decoding failed: %v", err)
+		}
+		
+		if len(decoded) != 1 {
+			t.Fatalf("Expected 1 decoded object, got %d", len(decoded))
+		}
+		
+		// Application can now use the decoded structure
+		decodedProfile := decoded[0]
+		t.Logf("Decoded user profile:\n%s", decodedProfile.String())
+		
+		// Verify round-trip
+		reencoded, err := decodedProfile.Encode()
+		if err != nil {
+			t.Fatalf("Re-encoding failed: %v", err)
+		}
+		
+		if !bytes.Equal(encoded, reencoded) {
+			t.Errorf("Round-trip failed for user profile")
+		} else {
+			t.Log("✓ User profile round-trip successful")
+		}
+	})
+	
+	t.Run("ConfigurationDocument", func(t *testing.T) {
+		// Simulate encoding/decoding application configuration
+		
+		config := NewSequence()
+		
+		// Version info
+		config.Add(NewInteger(2)) // config version
+		
+		// Server settings
+		serverConfig := NewSequence()
+		serverConfig.Add(NewIA5String("https://api.example.com"))
+		serverConfig.Add(NewInteger(443)) // port
+		serverConfig.Add(NewBoolean(true)) // use TLS
+		config.Add(serverConfig)
+		
+		// Feature flags as enumerated choices
+		features := NewSequence()
+		
+		// Feature: logging level
+		loggingChoice := NewChoiceWithID(NewEnumeratedWithName(2, "DEBUG"), "logging_level")
+		features.Add(loggingChoice)
+		
+		// Feature: cache strategy
+		cacheChoice := NewChoiceWithID(NewEnumeratedWithName(1, "REDIS"), "cache_strategy")
+		features.Add(cacheChoice)
+		
+		config.Add(features)
+		
+		// Optional advanced settings with context tags
+		advancedTag := NewContextSpecificTag(0, true)
+		advanced := NewStructured(advancedTag)
+		
+		advancedSettings := NewSequence()
+		advancedSettings.Add(NewInteger(3600)) // session timeout
+		advancedSettings.Add(NewOctetString([]byte("encryption-key-hash")))
+		advanced.Add(advancedSettings)
+		
+		config.Add(advanced)
+		
+		// Encode configuration
+		encoded, err := config.Encode()
+		if err != nil {
+			t.Fatalf("Config encoding failed: %v", err)
+		}
+		
+		t.Logf("Configuration encoded to %d bytes", len(encoded))
+		
+		// Decode configuration
+		decoded, err := DecodeAll(encoded)
+		if err != nil {
+			t.Fatalf("Config decoding failed: %v", err)
+		}
+		
+		if len(decoded) != 1 {
+			t.Fatalf("Expected 1 decoded config, got %d", len(decoded))
+		}
+		
+		decodedConfig := decoded[0]
+		t.Logf("Decoded configuration:\n%s", decodedConfig.String())
+		
+		// Verify round-trip
+		reencoded, err := decodedConfig.Encode()
+		if err != nil {
+			t.Fatalf("Config re-encoding failed: %v", err)
+		}
+		
+		if !bytes.Equal(encoded, reencoded) {
+			t.Errorf("Round-trip failed for configuration")
+		} else {
+			t.Log("✓ Configuration round-trip successful")
+		}
+	})
+}
+
+func TestAdvancedTypesRoundTrip(t *testing.T) {
+	t.Run("ChoiceTypes", func(t *testing.T) {
+		// Test various CHOICE types
+		choices := []*ASN1Choice{
+			NewChoiceWithID(NewBoolean(true), "boolean_option"),
+			NewChoiceWithID(NewInteger(42), "integer_option"),
+			NewChoiceWithID(NewUTF8String("text_option"), "string_option"),
+			NewChoiceWithID(NewOctetString([]byte{1, 2, 3}), "binary_option"),
+		}
+		
+		for i, choice := range choices {
+			t.Run(fmt.Sprintf("Choice_%d", i), func(t *testing.T) {
+				// Encode choice
+				encoded, err := choice.Encode()
+				if err != nil {
+					t.Fatalf("CHOICE encoding failed: %v", err)
+				}
+				
+				// Decode back to generic ASN1Value
+				decoded, consumed, err := DecodeTLV(encoded)
+				if err != nil {
+					t.Fatalf("CHOICE decoding failed: %v", err)
+				}
+				
+				if consumed != len(encoded) {
+					t.Errorf("CHOICE consumed %d bytes, expected %d", consumed, len(encoded))
+				}
+				
+				// Re-encode
+				reencoded, err := decoded.Encode()
+				if err != nil {
+					t.Fatalf("CHOICE re-encoding failed: %v", err)
+				}
+				
+				if !bytes.Equal(encoded, reencoded) {
+					t.Errorf("CHOICE round-trip failed")
+				} else {
+					t.Logf("✓ CHOICE round-trip successful: %s", choice.String())
+				}
+			})
+		}
+	})
+	
+	t.Run("EnumeratedTypes", func(t *testing.T) {
+		// Test various ENUMERATED types
+		enums := []*ASN1Enumerated{
+			NewEnumerated(0),
+			NewEnumeratedWithName(1, "ACTIVE"),
+			NewEnumeratedWithName(42, "ANSWER"),
+			NewEnumeratedWithName(-1, "ERROR"),
+		}
+		
+		for i, enum := range enums {
+			t.Run(fmt.Sprintf("Enum_%d", i), func(t *testing.T) {
+				originalValue := enum.Int64()
+				
+				// Encode enumerated
+				encoded, err := enum.Encode()
+				if err != nil {
+					t.Fatalf("ENUMERATED encoding failed: %v", err)
+				}
+				
+				// Decode back
+				decoded, consumed, err := DecodeEnumerated(encoded)
+				if err != nil {
+					t.Fatalf("ENUMERATED decoding failed: %v", err)
+				}
+				
+				if consumed != len(encoded) {
+					t.Errorf("ENUMERATED consumed %d bytes, expected %d", consumed, len(encoded))
+				}
+				
+				if decoded.Int64() != originalValue {
+					t.Errorf("ENUMERATED value mismatch: original %d, decoded %d", originalValue, decoded.Int64())
+				}
+				
+				// Re-encode
+				reencoded, err := decoded.Encode()
+				if err != nil {
+					t.Fatalf("ENUMERATED re-encoding failed: %v", err)
+				}
+				
+				if !bytes.Equal(encoded, reencoded) {
+					t.Errorf("ENUMERATED round-trip failed")
+				} else {
+					t.Logf("✓ ENUMERATED round-trip successful: %s", enum.String())
+				}
+			})
+		}
+	})
+	
+	t.Run("TimeTypes", func(t *testing.T) {
+		testTime := time.Date(2023, 12, 25, 14, 30, 45, 0, time.UTC)
+		
+		// Test UTCTime
+		utcTime := NewUTCTime(testTime)
+		utcEncoded, err := utcTime.Encode()
+		if err != nil {
+			t.Fatalf("UTCTime encoding failed: %v", err)
+		}
+		
+		utcDecoded, consumed, err := DecodeUTCTime(utcEncoded)
+		if err != nil {
+			t.Fatalf("UTCTime decoding failed: %v", err)
+		}
+		
+		if consumed != len(utcEncoded) {
+			t.Errorf("UTCTime consumed %d bytes, expected %d", consumed, len(utcEncoded))
+		}
+		
+		if !utcDecoded.Time().Equal(testTime) {
+			t.Errorf("UTCTime mismatch: original %v, decoded %v", testTime, utcDecoded.Time())
+		}
+		
+		// Test GeneralizedTime
+		genTime := NewGeneralizedTime(testTime)
+		genEncoded, err := genTime.Encode()
+		if err != nil {
+			t.Fatalf("GeneralizedTime encoding failed: %v", err)
+		}
+		
+		genDecoded, consumed, err := DecodeGeneralizedTime(genEncoded)
+		if err != nil {
+			t.Fatalf("GeneralizedTime decoding failed: %v", err)
+		}
+		
+		if consumed != len(genEncoded) {
+			t.Errorf("GeneralizedTime consumed %d bytes, expected %d", consumed, len(genEncoded))
+		}
+		
+		if !genDecoded.Time().Equal(testTime) {
+			t.Errorf("GeneralizedTime mismatch: original %v, decoded %v", testTime, genDecoded.Time())
+		}
+		
+		t.Log("✓ Time types round-trip successful")
+	})
+}
+
+func TestEasyToUseAPI(t *testing.T) {
+	// Demonstrate how easy it is to use the library from an application perspective
+	
+	t.Run("SimpleDocument", func(t *testing.T) {
+		// Application creates a simple document
+		doc := NewSequence()
+		doc.Add(NewUTF8String("My Document"))
+		doc.Add(NewInteger(1))
+		doc.Add(NewBoolean(true))
+		
+		// Easy encoding - just one call
+		data, err := doc.Encode()
+		if err != nil {
+			t.Fatalf("Encoding failed: %v", err)
+		}
+		
+		// Easy decoding - just one call
+		objects, err := DecodeAll(data)
+		if err != nil {
+			t.Fatalf("Decoding failed: %v", err)
+		}
+		
+		// Application gets back structured data
+		if len(objects) != 1 {
+			t.Fatalf("Expected 1 object, got %d", len(objects))
+		}
+		
+		decoded := objects[0]
+		t.Logf("Round-trip result: %s", decoded.String())
+		
+		// Application can easily inspect the structure
+		if decoded.Tag().Number != TagSequence {
+			t.Errorf("Expected SEQUENCE tag, got %d", decoded.Tag().Number)
+		}
+		
+		// Application can access nested elements if it's a structured type
+		if structured, ok := decoded.(*ASN1Structured); ok {
+			elements := structured.Elements()
+			if len(elements) != 3 {
+				t.Errorf("Expected 3 elements, got %d", len(elements))
+			}
+			t.Logf("Document has %d elements", len(elements))
+		}
+		
+		t.Log("✓ Simple document API test passed")
+	})
+	
+	t.Run("DataSerialization", func(t *testing.T) {
+		// Show how an application might serialize arbitrary data
+		
+		// Application data
+		appData := map[string]interface{}{
+			"user_id":    12345,
+			"username":   "alice",
+			"is_active":  true,
+			"created_at": time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+		}
+		
+		// Convert to ASN.1 structure
+		container := NewSequence()
+		
+		// Serialize each field
+		for key, value := range appData {
+			pair := NewSequence()
+			pair.Add(NewUTF8String(key)) // field name
+			
+			// Convert value based on type
+			switch v := value.(type) {
+			case int:
+				pair.Add(NewInteger(int64(v)))
+			case string:
+				pair.Add(NewUTF8String(v))
+			case bool:
+				pair.Add(NewBoolean(v))
+			case time.Time:
+				pair.Add(NewUTCTime(v))
+			}
+			
+			container.Add(pair)
+		}
+		
+		// Encode for storage/transmission
+		encoded, err := container.Encode()
+		if err != nil {
+			t.Fatalf("Failed to encode app data: %v", err)
+		}
+		
+		t.Logf("Application data encoded to %d bytes", len(encoded))
+		
+		// Decode when retrieving
+		decoded, err := DecodeAll(encoded)
+		if err != nil {
+			t.Fatalf("Failed to decode app data: %v", err)
+		}
+		
+		if len(decoded) != 1 {
+			t.Fatalf("Expected 1 object, got %d", len(decoded))
+		}
+		
+		decodedContainer := decoded[0]
+		t.Logf("Decoded application data:\n%s", decodedContainer.String())
+		
+		// Application can process the decoded structure
+		if structured, ok := decodedContainer.(*ASN1Structured); ok {
+			elements := structured.Elements()
+			t.Logf("Application data has %d fields", len(elements))
+			
+			// Application can iterate through fields
+			for i, elem := range elements {
+				if field, ok := elem.(*ASN1Structured); ok {
+					fieldElements := field.Elements()
+					if len(fieldElements) >= 2 {
+						// First element should be field name
+						if nameElem, ok := fieldElements[0].(*ASN1Value); ok {
+							fieldName := string(nameElem.Value())
+							t.Logf("  Field %d: %s", i, fieldName)
+						}
+					}
+				}
+			}
+		}
+		
+		t.Log("✓ Data serialization API test passed")
+	})
+}
+
+func TestConvenienceFunctions(t *testing.T) {
+	// Test the new convenience functions for easy application usage
+	
+	t.Run("EncodeDecodeConvenience", func(t *testing.T) {
+		// Create a simple structure
+		original := NewSequence()
+		original.Add(NewInteger(42))
+		original.Add(NewUTF8String("Hello"))
+		original.Add(NewBoolean(true))
+		
+		// Use convenience Encode function
+		encoded, err := Encode(original)
+		if err != nil {
+			t.Fatalf("Convenience Encode failed: %v", err)
+		}
+		
+		// Use convenience Decode function
+		decoded, err := Decode(encoded)
+		if err != nil {
+			t.Fatalf("Convenience Decode failed: %v", err)
+		}
+		
+		// Verify round-trip
+		reencoded, err := Encode(decoded)
+		if err != nil {
+			t.Fatalf("Re-encoding failed: %v", err)
+		}
+		
+		if !bytes.Equal(encoded, reencoded) {
+			t.Errorf("Round-trip failed with convenience functions")
+		}
+		
+		t.Logf("Original: %s", original.String())
+		t.Logf("Decoded:  %s", decoded.String())
+		t.Log("✓ Convenience encode/decode functions work correctly")
+	})
+	
+	t.Run("HexEncoding", func(t *testing.T) {
+		// Test hex encoding convenience function
+		simple := NewInteger(127) // Use 127 which fits in 1 byte
+		
+		hexStr, err := EncodeToHex(simple)
+		if err != nil {
+			t.Fatalf("EncodeToHex failed: %v", err)
+		}
+		
+		t.Logf("INTEGER 127 encoded as hex: %s", hexStr)
+		
+		// Should be: 02 01 7F (tag=02, length=01, value=7F)
+		if hexStr != "02017F" {
+			t.Errorf("Expected hex '02017F', got '%s'", hexStr)
+		}
+		
+		t.Log("✓ Hex encoding convenience function works correctly")
+	})
 }
