@@ -225,7 +225,8 @@ func (s *ASN1Structured) TaggedString() string {
 			typeName = fmt.Sprintf("STRUCTURED_%d", s.tag.Number)
 		}
 	} else {
-		typeName = fmt.Sprintf("STRUCTURED_%d_%d", s.tag.Class, s.tag.Number)
+		// For non-universal tags, just use "STRUCTURED" since the tag already contains class and number info
+		typeName = "STRUCTURED"
 	}
 	
 	return fmt.Sprintf("%s %s", s.tag.TagString(), typeName)
@@ -248,7 +249,8 @@ func (s *ASN1Structured) compactStringWithIndent(indent int) string {
 			typeName = fmt.Sprintf("STRUCTURED_%d", s.tag.Number)
 		}
 	} else {
-		typeName = fmt.Sprintf("STRUCTURED_%d_%d", s.tag.Class, s.tag.Number)
+		// For non-universal tags, just use "STRUCTURED" since the tag already contains class and number info
+		typeName = "STRUCTURED"
 	}
 
 	result := fmt.Sprintf("%s %s: {\n", s.tag.TagString(), typeName)
