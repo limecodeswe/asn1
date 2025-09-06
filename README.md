@@ -23,11 +23,19 @@ A complete, production-ready Go library for working with ASN.1 data using BER en
 - **OCTET STRING** - `ASN1OctetString`
 - **NULL** - `ASN1Null`
 - **OBJECT IDENTIFIER** - `ASN1ObjectIdentifier`
+- **ENUMERATED** - `ASN1Enumerated` (with optional names)
 
 ### String Types
 - **UTF8String** - `ASN1UTF8String`
 - **PrintableString** - `ASN1PrintableString`
 - **IA5String** - `ASN1IA5String`
+
+### Time Types
+- **UTCTime** - `ASN1UTCTime`
+- **GeneralizedTime** - `ASN1GeneralizedTime`
+
+### Choice and Alternative Types
+- **CHOICE** - `ASN1Choice` (select one of multiple alternatives)
 
 ### Structured Types
 - **SEQUENCE** - `ASN1Structured`
@@ -113,6 +121,16 @@ oid, _ := asn1.NewObjectIdentifierFromString("1.2.840.113549.1.1.1")
 utf8Str := asn1.NewUTF8String("Hello, 世界!")
 printableStr := asn1.NewPrintableString("Hello World")
 ia5Str := asn1.NewIA5String("user@example.com")
+
+// Enumerated values
+status := asn1.NewEnumeratedWithName(1, "WARNING")
+
+// Time types
+utcTime := asn1.NewUTCTimeNow()
+genTime := asn1.NewGeneralizedTimeNow()
+
+// Choice types
+choice := asn1.NewChoiceWithID(asn1.NewInteger(42), "integer_option")
 ```
 
 ### Creating Structured Types
@@ -175,6 +193,48 @@ if err != nil {
 
 fmt.Printf("Person encoded to %d bytes\n", len(encoded))
 fmt.Println(person.String()) // Pretty-print the structure
+```
+
+### Working with New Types
+
+#### CHOICE Type
+```go
+// CHOICE allows selecting one of multiple alternatives
+boolChoice := asn1.NewChoiceWithID(asn1.NewBoolean(true), "boolean_option")
+intChoice := asn1.NewChoiceWithID(asn1.NewInteger(42), "integer_option")
+stringChoice := asn1.NewChoiceWithID(asn1.NewUTF8String("Hello"), "string_option")
+
+// Encode the chosen value
+encoded, err := boolChoice.Encode()
+```
+
+#### ENUMERATED Type
+```go
+// Create enumerated values with names
+statusOK := asn1.NewEnumeratedWithName(0, "OK")
+statusWarning := asn1.NewEnumeratedWithName(1, "WARNING") 
+statusError := asn1.NewEnumeratedWithName(2, "ERROR")
+
+// Or without names
+priority := asn1.NewEnumerated(1)
+
+fmt.Printf("Status: %s\n", statusWarning.String()) // "ENUMERATED{WARNING (1)}"
+```
+
+#### Time Types
+```go
+// UTCTime for dates within 1950-2049
+utcTime := asn1.NewUTCTimeNow()
+specificTime := asn1.NewUTCTime(time.Date(2023, 12, 25, 14, 30, 0, 0, time.UTC))
+
+// GeneralizedTime for any date
+genTime := asn1.NewGeneralizedTimeNow()
+futureTime := asn1.NewGeneralizedTime(time.Date(2050, 1, 1, 0, 0, 0, 0, time.UTC))
+
+// Encode and decode
+encoded, _ := utcTime.Encode()
+decoded, _, _ := asn1.DecodeUTCTime(encoded)
+fmt.Printf("Time: %s\n", decoded.Time().Format(time.RFC3339))
 ```
 
 ### Person Directory (SEQUENCE OF)
@@ -270,7 +330,9 @@ go test -v
 ```
 
 The tests cover:
-- All primitive types encoding/decoding
+- All primitive types encoding/decoding (including ENUMERATED)
+- Time types (UTCTime, GeneralizedTime)
+- Choice types with multiple alternatives
 - Structured types (SEQUENCE/SET)
 - Context-specific tags
 - Object identifiers
@@ -294,6 +356,7 @@ This will demonstrate:
 4. Context-specific tags
 5. Object identifiers
 6. Encoding/decoding round trips
+7. **New types (CHOICE, ENUMERATED, Time types)**
 
 ## ASN.1 Specification Compliance
 

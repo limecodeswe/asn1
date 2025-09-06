@@ -29,6 +29,9 @@ func main() {
 
 	// Demonstrate encoding/decoding round trip
 	demonstrateRoundTrip()
+
+	// Demonstrate new types (CHOICE, ENUMERATED, Time types)
+	demonstrateNewTypes()
 }
 
 func demonstrateBasicTypes() {
@@ -323,6 +326,111 @@ func demonstrateRoundTrip() {
 			fmt.Println("✗ Round-trip failed - size differs")
 		}
 	}
+}
+
+func demonstrateNewTypes() {
+	fmt.Println("\n7. New ASN.1 Types")
+	fmt.Println("------------------")
+
+	// CHOICE type demonstration
+	fmt.Println("\nCHOICE Type:")
+	
+	// Create different choices
+	boolChoice := asn1.NewChoiceWithID(asn1.NewBoolean(true), "boolean_option")
+	intChoice := asn1.NewChoiceWithID(asn1.NewInteger(42), "integer_option")
+	stringChoice := asn1.NewChoiceWithID(asn1.NewUTF8String("Hello Choice"), "string_option")
+	
+	choices := []*asn1.ASN1Choice{boolChoice, intChoice, stringChoice}
+	for _, choice := range choices {
+		encoded, err := choice.Encode()
+		if err != nil {
+			log.Printf("CHOICE encoding failed: %v", err)
+			continue
+		}
+		fmt.Printf("  %s -> %d bytes\n", choice.String(), len(encoded))
+	}
+
+	// ENUMERATED type demonstration
+	fmt.Println("\nENUMERATED Type:")
+	
+	statusOK := asn1.NewEnumeratedWithName(0, "OK")
+	statusWarning := asn1.NewEnumeratedWithName(1, "WARNING")
+	statusError := asn1.NewEnumeratedWithName(2, "ERROR")
+	statusCritical := asn1.NewEnumeratedWithName(3, "CRITICAL")
+	
+	enums := []*asn1.ASN1Enumerated{statusOK, statusWarning, statusError, statusCritical}
+	for _, enum := range enums {
+		encoded, err := enum.Encode()
+		if err != nil {
+			log.Printf("ENUMERATED encoding failed: %v", err)
+			continue
+		}
+		fmt.Printf("  %s -> %d bytes\n", enum.String(), len(encoded))
+	}
+
+	// Time types demonstration
+	fmt.Println("\nTime Types:")
+	
+	// UTCTime
+	now := time.Now()
+	utcTime := asn1.NewUTCTime(now)
+	utcEncoded, err := utcTime.Encode()
+	if err != nil {
+		log.Printf("UTCTime encoding failed: %v", err)
+	} else {
+		fmt.Printf("  %s -> %d bytes\n", utcTime.String(), len(utcEncoded))
+	}
+	
+	// GeneralizedTime
+	genTime := asn1.NewGeneralizedTime(now)
+	genEncoded, err := genTime.Encode()
+	if err != nil {
+		log.Printf("GeneralizedTime encoding failed: %v", err)
+	} else {
+		fmt.Printf("  %s -> %d bytes\n", genTime.String(), len(genEncoded))
+	}
+
+	// Demonstrate round-trip with new types
+	fmt.Println("\nRound-trip test with new types:")
+	
+	// Test ENUMERATED round-trip
+	originalEnum := asn1.NewEnumeratedWithName(42, "answer")
+	enumEncoded, err := originalEnum.Encode()
+	if err != nil {
+		log.Printf("ENUMERATED encoding failed: %v", err)
+	} else {
+		decodedEnum, consumed, err := asn1.DecodeEnumerated(enumEncoded)
+		if err != nil {
+			log.Printf("ENUMERATED decoding failed: %v", err)
+		} else if consumed != len(enumEncoded) {
+			fmt.Printf("  ✗ ENUMERATED: consumed %d bytes, expected %d\n", consumed, len(enumEncoded))
+		} else if decodedEnum.Int64() != originalEnum.Int64() {
+			fmt.Printf("  ✗ ENUMERATED: value mismatch\n")
+		} else {
+			fmt.Printf("  ✓ ENUMERATED round-trip successful\n")
+		}
+	}
+	
+	// Test UTCTime round-trip
+	testTime := time.Date(2023, 12, 25, 14, 30, 45, 0, time.UTC)
+	originalUTC := asn1.NewUTCTime(testTime)
+	utcEncoded2, err := originalUTC.Encode()
+	if err != nil {
+		log.Printf("UTCTime encoding failed: %v", err)
+	} else {
+		decodedUTC, consumed, err := asn1.DecodeUTCTime(utcEncoded2)
+		if err != nil {
+			log.Printf("UTCTime decoding failed: %v", err)
+		} else if consumed != len(utcEncoded2) {
+			fmt.Printf("  ✗ UTCTime: consumed %d bytes, expected %d\n", consumed, len(utcEncoded2))
+		} else if !decodedUTC.Time().Equal(originalUTC.Time()) {
+			fmt.Printf("  ✗ UTCTime: time mismatch\n")
+		} else {
+			fmt.Printf("  ✓ UTCTime round-trip successful\n")
+		}
+	}
+
+	fmt.Println("\nLibrary now supports all essential ASN.1 types including CHOICE!")
 }
 
 func min(a, b int) int {

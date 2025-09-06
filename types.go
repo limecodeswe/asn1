@@ -13,6 +13,7 @@ const (
 	TagOctetString     = 4
 	TagNull            = 5
 	TagOID             = 6
+	TagEnumerated      = 10
 	TagUTF8String      = 12
 	TagSequence        = 16
 	TagSet             = 17

@@ -2,7 +2,9 @@ package asn1
 
 import (
 	"bytes"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestBoolean(t *testing.T) {
@@ -384,4 +386,180 @@ func TestPersonDirectory(t *testing.T) {
 
 	t.Logf("PersonDirectory encoded to %d bytes", len(encoded))
 	t.Logf("PersonDirectory: %s", dir.CompactString())
+}
+
+func TestChoice(t *testing.T) {
+	// Test with boolean choice
+	boolValue := NewBoolean(true)
+	choice1 := NewChoiceWithID(boolValue, "boolean_choice")
+	
+	// Test encoding
+	encoded1, err := choice1.Encode()
+	if err != nil {
+		t.Fatalf("Encode() error = %v", err)
+	}
+	
+	// The encoded choice should be the same as the boolean value
+	boolEncoded, err := boolValue.Encode()
+	if err != nil {
+		t.Fatalf("Boolean Encode() error = %v", err)
+	}
+	
+	if !bytes.Equal(encoded1, boolEncoded) {
+		t.Errorf("Choice encoding differs from direct boolean encoding")
+	}
+	
+	// Test with integer choice
+	intValue := NewInteger(42)
+	choice2 := NewChoiceWithID(intValue, "integer_choice")
+	
+	encoded2, err := choice2.Encode()
+	if err != nil {
+		t.Fatalf("Encode() error = %v", err)
+	}
+	
+	// Test tag retrieval
+	if choice2.Tag() != intValue.Tag() {
+		t.Errorf("Choice tag differs from underlying value tag")
+	}
+	
+	// Test string representation
+	str := choice2.String()
+	if !strings.Contains(str, "integer_choice") {
+		t.Errorf("String() should contain choice ID")
+	}
+	
+	t.Logf("Boolean choice encoded to %d bytes", len(encoded1))
+	t.Logf("Integer choice encoded to %d bytes", len(encoded2))
+	t.Logf("Choice string: %s", choice2.String())
+}
+
+func TestEnumerated(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    int64
+		enumName string
+	}{
+		{"zero", 0, ""},
+		{"positive", 42, "answer"},
+		{"negative", -1, "error"},
+		{"large", 1000000, "large_value"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var enum *ASN1Enumerated
+			if tt.enumName != "" {
+				enum = NewEnumeratedWithName(tt.value, tt.enumName)
+			} else {
+				enum = NewEnumerated(tt.value)
+			}
+			
+			// Test encoding
+			encoded, err := enum.Encode()
+			if err != nil {
+				t.Fatalf("Encode() error = %v", err)
+			}
+
+			// Test decoding
+			decoded, consumed, err := DecodeEnumerated(encoded)
+			if err != nil {
+				t.Fatalf("DecodeEnumerated() error = %v", err)
+			}
+			if consumed != len(encoded) {
+				t.Errorf("DecodeEnumerated() consumed = %d, want %d", consumed, len(encoded))
+			}
+			if decoded.Int64() != tt.value {
+				t.Errorf("DecodeEnumerated() value = %d, want %d", decoded.Int64(), tt.value)
+			}
+			// Note: Names are not encoded in ASN.1, so they won't be preserved during round-trip
+			if tt.enumName != "" && enum.Name() != tt.enumName {
+				t.Logf("Original name preserved: %s", enum.Name())
+			}
+
+			// Test string representation
+			str := enum.String()
+			if tt.enumName != "" && !strings.Contains(str, tt.enumName) {
+				t.Errorf("String() should contain enum name")
+			}
+			
+			t.Logf("Enumerated %s encoded to %d bytes", tt.name, len(encoded))
+		})
+	}
+}
+
+func TestUTCTime(t *testing.T) {
+	// Test with a known time
+	testTime := time.Date(2023, 12, 25, 10, 30, 45, 0, time.UTC)
+	utcTime := NewUTCTime(testTime)
+	
+	// Test encoding
+	encoded, err := utcTime.Encode()
+	if err != nil {
+		t.Fatalf("Encode() error = %v", err)
+	}
+	
+	// Test decoding
+	decoded, consumed, err := DecodeUTCTime(encoded)
+	if err != nil {
+		t.Fatalf("DecodeUTCTime() error = %v", err)
+	}
+	if consumed != len(encoded) {
+		t.Errorf("DecodeUTCTime() consumed = %d, want %d", consumed, len(encoded))
+	}
+	
+	// Compare times (allowing for second precision)
+	decodedTime := decoded.Time()
+	if !testTime.Equal(decodedTime) {
+		t.Errorf("DecodeUTCTime() time = %v, want %v", decodedTime, testTime)
+	}
+	
+	// Test current time
+	now := NewUTCTimeNow()
+	encodedNow, err := now.Encode()
+	if err != nil {
+		t.Fatalf("Encode() error = %v", err)
+	}
+	
+	t.Logf("UTCTime encoded to %d bytes", len(encoded))
+	t.Logf("UTCTime string: %s", utcTime.String())
+	t.Logf("Current time encoded to %d bytes", len(encodedNow))
+}
+
+func TestGeneralizedTime(t *testing.T) {
+	// Test with a known time
+	testTime := time.Date(2023, 12, 25, 10, 30, 45, 0, time.UTC)
+	genTime := NewGeneralizedTime(testTime)
+	
+	// Test encoding
+	encoded, err := genTime.Encode()
+	if err != nil {
+		t.Fatalf("Encode() error = %v", err)
+	}
+	
+	// Test decoding
+	decoded, consumed, err := DecodeGeneralizedTime(encoded)
+	if err != nil {
+		t.Fatalf("DecodeGeneralizedTime() error = %v", err)
+	}
+	if consumed != len(encoded) {
+		t.Errorf("DecodeGeneralizedTime() consumed = %d, want %d", consumed, len(encoded))
+	}
+	
+	// Compare times (allowing for second precision)
+	decodedTime := decoded.Time()
+	if !testTime.Equal(decodedTime) {
+		t.Errorf("DecodeGeneralizedTime() time = %v, want %v", decodedTime, testTime)
+	}
+	
+	// Test current time
+	now := NewGeneralizedTimeNow()
+	encodedNow, err := now.Encode()
+	if err != nil {
+		t.Fatalf("Encode() error = %v", err)
+	}
+	
+	t.Logf("GeneralizedTime encoded to %d bytes", len(encoded))
+	t.Logf("GeneralizedTime string: %s", genTime.String())
+	t.Logf("Current time encoded to %d bytes", len(encodedNow))
 }
