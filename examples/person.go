@@ -8,7 +8,6 @@ import (
 )
 
 // Person represents a realistic ASN.1 structure for a person
-// This demonstrates how to use the library for real-world applications
 type Person struct {
 	// Required fields
 	ID       int64  // INTEGER
@@ -18,7 +17,7 @@ type Person struct {
 
 	// Optional fields (will be context-specific tagged)
 	Department   *string    // [0] OPTIONAL PrintableString
-	PhoneNumber  *string    // [1] OPTIONAL PrintableString  
+	PhoneNumber  *string    // [1] OPTIONAL PrintableString
 	Birthday     *time.Time // [2] OPTIONAL UTCTime
 	Salary       *int64     // [3] OPTIONAL INTEGER
 	Manager      *Person    // [4] OPTIONAL Person (recursive structure)
@@ -43,7 +42,7 @@ func (p *Person) SetDepartment(dept string) *Person {
 	return p
 }
 
-// SetPhoneNumber sets the optional phone number field  
+// SetPhoneNumber sets the optional phone number field
 func (p *Person) SetPhoneNumber(phone string) *Person {
 	p.PhoneNumber = &phone
 	return p
@@ -223,7 +222,7 @@ func (p *Person) String() string {
 
 // CompactString returns a compact string representation
 func (p *Person) CompactString() string {
-	return fmt.Sprintf("Person{ID: %d, Name: %q, Email: %q, Active: %t}", 
+	return fmt.Sprintf("Person{ID: %d, Name: %q, Email: %q, Active: %t}",
 		p.ID, p.Name, p.Email, p.IsActive)
 }
 
