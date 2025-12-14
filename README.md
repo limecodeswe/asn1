@@ -66,7 +66,8 @@ decoded, _, err := asn1.DecodeTLV(encoded)
 | `octetstring` | OCTET STRING | `[]byte \`asn1:"octetstring"\`` |
 | `sequence` | SEQUENCE | `struct \`asn1:"sequence"\`` |
 | `choice` | CHOICE | `interface{} \`asn1:"choice"\`` |
-| `optional,tag:N` | Context tag | `*string \`asn1:"utf8string,optional,tag:0"\`` |
+| `optional,tag:N` | Context tag (IMPLICIT) | `*string \`asn1:"utf8string,optional,tag:0"\`` |
+| `explicit` | Use EXPLICIT tagging | `*struct \`asn1:"sequence,tag:0,explicit"\`` |
 
 ## CHOICE Types
 

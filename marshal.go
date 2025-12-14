@@ -187,6 +187,7 @@ type fieldInfo struct {
 	Tag       int
 	HasTag    bool
 	Omitempty bool
+	Explicit  bool // If true, use explicit tagging (wrap); if false, use implicit tagging (replace)
 }
 
 // parseASN1Tag parses an ASN.1 struct tag
@@ -212,6 +213,8 @@ func parseASN1Tag(tag string) (*fieldInfo, error) {
 			info.Optional = true
 		case part == "omitempty":
 			info.Omitempty = true
+		case part == "explicit":
+			info.Explicit = true
 		case strings.HasPrefix(part, "tag:"):
 			tagStr := strings.TrimPrefix(part, "tag:")
 			tagNum, err := strconv.Atoi(tagStr)
@@ -325,10 +328,17 @@ func marshalStruct(v reflect.Value, opts *MarshalOptions) (ASN1Object, error) {
 
 		// Apply context-specific tag if specified
 		if info.HasTag && opts.UseContextTags {
-			contextTag := NewContextSpecificTag(info.Tag, isConstructedType(obj))
-			wrapped := NewStructured(contextTag)
-			wrapped.Add(obj)
-			obj = wrapped
+			if info.Explicit {
+				// EXPLICIT tagging: wrap the object with context-specific tag
+				// The wrapper is always constructed for EXPLICIT tagging
+				contextTag := NewContextSpecificTag(info.Tag, true)
+				wrapped := NewStructured(contextTag)
+				wrapped.Add(obj)
+				obj = wrapped
+			} else {
+				// IMPLICIT tagging: replace the object's tag with context-specific tag
+				obj = replaceTag(obj, info.Tag)
+			}
 		}
 
 		seq.Add(obj)
@@ -529,13 +539,18 @@ func unmarshalStruct(obj ASN1Object, v reflect.Value, opts *MarshalOptions) erro
 
 		// Handle context-specific tags
 		if info.HasTag && opts.UseContextTags {
-			if wrapped, ok := element.(*ASN1Structured); ok {
-				// Check if this is a context-specific tag wrapper
-				if wrapped.Tag().Class == 2 && wrapped.Tag().Number == info.Tag {
-					wrappedElements := wrapped.Elements()
-					if len(wrappedElements) == 1 {
-						element = wrappedElements[0]
+			if element.Tag().Class == 2 && element.Tag().Number == info.Tag {
+				if info.Explicit {
+					// EXPLICIT tagging: unwrap to get the inner element
+					if wrapped, ok := element.(*ASN1Structured); ok {
+						wrappedElements := wrapped.Elements()
+						if len(wrappedElements) == 1 {
+							element = wrappedElements[0]
+						}
 					}
+				} else {
+					// IMPLICIT tagging: restore the original tag
+					element = restoreTag(element, info.Type)
 				}
 			}
 		}
@@ -760,4 +775,132 @@ func isConstructedType(obj ASN1Object) bool {
 	default:
 		return false
 	}
+}
+
+// replaceTag creates a new ASN.1 object with a context-specific tag replacing the original tag
+// This implements IMPLICIT tagging
+func replaceTag(obj ASN1Object, tagNum int) ASN1Object {
+	// Get the raw encoded value
+	encoded, err := obj.Encode()
+	if err != nil {
+		// If we can't encode, return original object
+		return obj
+	}
+
+	// Decode to get the original TLV structure
+	origValue, _, err := DecodeTLV(encoded)
+	if err != nil {
+		// If we can't decode, return original object
+		return obj
+	}
+
+	// Create new tag with context-specific class, preserving constructed bit
+	newTag := Tag{
+		Class:       2, // Context-specific
+		Constructed: origValue.Tag().Constructed,
+		Number:      tagNum,
+	}
+
+	// Create new ASN1Value with the new tag but same content
+	newValue := NewASN1Value(newTag, origValue.Value())
+
+	// If it was constructed, return as ASN1Structured
+	if newTag.Constructed {
+		structured := NewStructured(newTag)
+		// Parse the content to extract individual elements
+		content := newValue.Value()
+		offset := 0
+
+		for offset < len(content) {
+			elementValue, consumed, err := DecodeTLV(content[offset:])
+			if err != nil {
+				break
+			}
+			element := convertToHighLevelObject(elementValue)
+			structured.Add(element)
+			offset += consumed
+		}
+		return structured
+	}
+
+	// For primitive types, convert to appropriate high-level object
+	return convertPrimitiveValue(newValue)
+}
+
+// restoreTag restores the original universal tag from an implicitly tagged object
+// This is used during unmarshaling to convert context-specific tags back to universal tags
+func restoreTag(obj ASN1Object, asn1Type string) ASN1Object {
+	// Get the raw encoded value
+	encoded, err := obj.Encode()
+	if err != nil {
+		return obj
+	}
+
+	// Decode to get the current TLV structure
+	currentValue, _, err := DecodeTLV(encoded)
+	if err != nil {
+		return obj
+	}
+
+	// Map ASN.1 type name to universal tag number
+	var tagNum int
+	var constructed bool
+
+	switch strings.ToLower(asn1Type) {
+	case "boolean":
+		tagNum = TagBoolean
+	case "integer":
+		tagNum = TagInteger
+	case "octetstring":
+		tagNum = TagOctetString
+	case "utf8string":
+		tagNum = TagUTF8String
+	case "printablestring":
+		tagNum = TagPrintableString
+	case "ia5string":
+		tagNum = TagIA5String
+	case "utctime":
+		tagNum = TagUTCTime
+	case "generalizedtime":
+		tagNum = TagGeneralizedTime
+	case "sequence":
+		tagNum = TagSequence
+		constructed = true
+	case "set":
+		tagNum = TagSet
+		constructed = true
+	default:
+		// Unknown type, return as-is
+		return obj
+	}
+
+	// Create new tag with universal class
+	newTag := Tag{
+		Class:       0, // Universal
+		Constructed: constructed,
+		Number:      tagNum,
+	}
+
+	// Create new ASN1Value with the restored tag and same content
+	newValue := NewASN1Value(newTag, currentValue.Value())
+
+	// Convert to appropriate high-level object
+	if constructed {
+		structured := NewStructured(newTag)
+		content := newValue.Value()
+		offset := 0
+
+		for offset < len(content) {
+			elementValue, consumed, err := DecodeTLV(content[offset:])
+			if err != nil {
+				break
+			}
+			element := convertToHighLevelObject(elementValue)
+			structured.Add(element)
+			offset += consumed
+		}
+		return structured
+	}
+
+	return convertPrimitiveValue(newValue)
 }

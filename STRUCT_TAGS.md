@@ -161,10 +161,30 @@ Name *string `asn1:"utf8string,optional"`
 ```
 
 ### `tag:N`
-Specifies a context-specific tag number for the field.
+Specifies a context-specific tag number for the field. **Uses IMPLICIT tagging by default** (compatible with SS7 MAP/CAP protocols).
 
 ```go
-Department *string `asn1:"printablestring,optional,tag:0"`
+Department *string `asn1:"printablestring,optional,tag:0"`  // IMPLICIT tagging (default)
+```
+
+### `explicit`
+Forces EXPLICIT tagging for context-specific tags. Must be used with `tag:N`.
+
+```go
+Manager *Person `asn1:"sequence,optional,tag:5,explicit"`  // EXPLICIT tagging
+```
+
+**IMPLICIT vs EXPLICIT Tagging:**
+- **IMPLICIT** (default): Replaces the original tag with the context-specific tag. More compact, used in MAP/CAP.
+  - Example: `[0]` directly contains the INTEGER value
+- **EXPLICIT**: Wraps the original tag with a context-specific tag wrapper. Preserves type information.
+  - Example: `[0] { INTEGER value }` - both tags are present
+
+```go
+type Example struct {
+    ImplicitInt int64  `asn1:"integer,tag:0"`          // [0] contains integer directly
+    ExplicitInt int64  `asn1:"integer,tag:1,explicit"` // [1] wraps universal INTEGER
+}
 ```
 
 ### `omitempty`
