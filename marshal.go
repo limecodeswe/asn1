@@ -116,16 +116,10 @@ func convertPrimitiveValue(val *ASN1Value) ASN1Object {
 	tag := val.Tag()
 	value := val.Value()
 
-	// Handle context-specific tags by decoding their content
+	// Handle context-specific tags - don't try to decode them
+	// With implicit tagging, the value is raw data, not a TLV structure
+	// The unmarshalStruct function will handle tag restoration via restoreTag
 	if tag.Class == 2 {
-		// Context-specific tag - the value contains the encoded content
-		if len(value) > 0 {
-			innerValue, _, err := DecodeTLV(value)
-			if err != nil {
-				return val // Return as-is if we can't decode
-			}
-			return convertPrimitiveValue(innerValue)
-		}
 		return val
 	}
 
@@ -967,8 +961,9 @@ func replaceTag(obj ASN1Object, tagNum int) ASN1Object {
 		return structured
 	}
 
-	// For primitive types, convert to appropriate high-level object
-	return convertPrimitiveValue(newValue)
+	// For primitive types, return the ASN1Value as-is
+	// Don't try to convert it - context-specific tags should be preserved during marshaling
+	return newValue
 }
 
 // restoreTag restores the original universal tag from an implicitly tagged object
