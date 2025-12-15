@@ -365,6 +365,31 @@ func marshalSlice(v reflect.Value, opts *MarshalOptions) (ASN1Object, error) {
 
 // marshalTypedValue converts a Go value to a specific ASN.1 type based on the field info
 func marshalTypedValue(v reflect.Value, info *fieldInfo, opts *MarshalOptions) (ASN1Object, error) {
+	// Check if the value implements custom marshaler interface
+	// Try both the value and its pointer
+	if v.CanInterface() {
+		if m, ok := v.Interface().(ASN1Marshaler); ok {
+			rawBytes, err := m.MarshalASN1()
+			if err != nil {
+				return nil, fmt.Errorf("custom marshaler failed: %w", err)
+			}
+			// Wrap the raw bytes with the appropriate tag based on the field info
+			return wrapCustomMarshaledBytes(rawBytes, info)
+		}
+	}
+	
+	// Also try with pointer receiver
+	if v.CanAddr() && v.Addr().CanInterface() {
+		if m, ok := v.Addr().Interface().(ASN1Marshaler); ok {
+			rawBytes, err := m.MarshalASN1()
+			if err != nil {
+				return nil, fmt.Errorf("custom marshaler failed: %w", err)
+			}
+			// Wrap the raw bytes with the appropriate tag based on the field info
+			return wrapCustomMarshaledBytes(rawBytes, info)
+		}
+	}
+
 	// Handle pointer types
 	if v.Kind() == reflect.Ptr {
 		if v.IsNil() {
@@ -451,8 +476,112 @@ func marshalTypedValue(v reflect.Value, info *fieldInfo, opts *MarshalOptions) (
 	}
 }
 
+// wrapCustomMarshaledBytes wraps custom marshaled bytes with the appropriate ASN.1 tag
+func wrapCustomMarshaledBytes(rawBytes []byte, info *fieldInfo) (ASN1Object, error) {
+	// Create an ASN.1 object based on the field's type tag
+	switch info.Type {
+	case "octetstring":
+		return NewOctetString(rawBytes), nil
+	case "integer":
+		// For integer, we need to decode the bytes as an integer value
+		intVal, err := DecodeIntegerValue(rawBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode custom marshaled integer: %w", err)
+		}
+		return NewIntegerFromBigInt(intVal), nil
+	case "utf8string":
+		return NewUTF8String(string(rawBytes)), nil
+	case "printablestring":
+		return NewPrintableString(string(rawBytes)), nil
+	case "ia5string":
+		return NewIA5String(string(rawBytes)), nil
+	case "sequence":
+		// For sequence, the custom marshaler should return properly encoded sequence content
+		// We need to decode it as a TLV and convert to ASN1Structured
+		asn1Value, _, err := DecodeTLV(rawBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode custom marshaled sequence: %w", err)
+		}
+		return convertToHighLevelObject(asn1Value), nil
+	case "boolean":
+		if len(rawBytes) != 1 {
+			return nil, fmt.Errorf("invalid boolean value from custom marshaler")
+		}
+		return NewBoolean(rawBytes[0] != 0), nil
+	case "bitstring":
+		// For bit string, assume the raw bytes are the bit string content with no unused bits
+		return NewBitString(rawBytes, 0), nil
+	default:
+		// For unknown types or generic cases, wrap as octet string
+		return NewOctetString(rawBytes), nil
+	}
+}
+
+// extractRawBytes extracts the raw value bytes from an ASN.1 object for custom unmarshaling
+func extractRawBytes(obj ASN1Object) ([]byte, error) {
+	// For different ASN.1 object types, extract their value bytes
+	switch o := obj.(type) {
+	case *ASN1OctetString:
+		return o.Value(), nil
+	case *ASN1Integer:
+		// For integers, encode the value as bytes
+		encoded, err := o.Encode()
+		if err != nil {
+			return nil, err
+		}
+		// Decode TLV to get just the value part
+		val, _, err := DecodeTLV(encoded)
+		if err != nil {
+			return nil, err
+		}
+		return val.Value(), nil
+	case *ASN1UTF8String:
+		return []byte(o.Value()), nil
+	case *ASN1PrintableString:
+		return []byte(o.Value()), nil
+	case *ASN1IA5String:
+		return []byte(o.Value()), nil
+	case *ASN1Boolean:
+		if o.Value() {
+			return []byte{0xFF}, nil
+		}
+		return []byte{0x00}, nil
+	case *ASN1BitString:
+		return o.Value(), nil
+	case *ASN1Structured:
+		// For structured types, encode and return just the content
+		encoded, err := o.Encode()
+		if err != nil {
+			return nil, err
+		}
+		// Decode TLV to get just the value part
+		val, _, err := DecodeTLV(encoded)
+		if err != nil {
+			return nil, err
+		}
+		return val.Value(), nil
+	case *ASN1Value:
+		return o.Value(), nil
+	default:
+		return nil, fmt.Errorf("unsupported ASN1Object type for custom unmarshaling: %T", obj)
+	}
+}
+
 // unmarshalValue converts an ASN.1 object to a Go value
 func unmarshalValue(obj ASN1Object, v reflect.Value, opts *MarshalOptions) error {
+	// Check if the value implements custom unmarshaler interface
+	// We need to check with pointer receiver since UnmarshalASN1 typically modifies the value
+	if v.CanAddr() && v.Addr().CanInterface() {
+		if u, ok := v.Addr().Interface().(ASN1Unmarshaler); ok {
+			// Get the raw encoded bytes from the ASN.1 object
+			rawBytes, err := extractRawBytes(obj)
+			if err != nil {
+				return fmt.Errorf("failed to extract raw bytes for custom unmarshaler: %w", err)
+			}
+			return u.UnmarshalASN1(rawBytes)
+		}
+	}
+
 	// Handle pointer types
 	if v.Kind() == reflect.Ptr {
 		if v.IsNil() {
