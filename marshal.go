@@ -225,6 +225,31 @@ func parseASN1Tag(tag string) (*fieldInfo, error) {
 
 // marshalValue converts a Go value to an ASN.1 object based on its type and tags
 func marshalValue(v reflect.Value, opts *MarshalOptions) (ASN1Object, error) {
+	// Check if the value implements custom marshaler interface
+	// Try both the value and its pointer receiver
+	if v.CanInterface() {
+		if m, ok := v.Interface().(ASN1Marshaler); ok {
+			rawBytes, err := m.MarshalASN1()
+			if err != nil {
+				return nil, fmt.Errorf("custom marshaler failed: %w", err)
+			}
+			// Wrap as OCTET STRING by default for custom marshaled values
+			return NewOctetString(rawBytes), nil
+		}
+	}
+	
+	// Also try with pointer receiver
+	if v.CanAddr() && v.Addr().CanInterface() {
+		if m, ok := v.Addr().Interface().(ASN1Marshaler); ok {
+			rawBytes, err := m.MarshalASN1()
+			if err != nil {
+				return nil, fmt.Errorf("custom marshaler failed: %w", err)
+			}
+			// Wrap as OCTET STRING by default for custom marshaled values
+			return NewOctetString(rawBytes), nil
+		}
+	}
+
 	// Handle pointer types
 	if v.Kind() == reflect.Ptr {
 		if v.IsNil() {
