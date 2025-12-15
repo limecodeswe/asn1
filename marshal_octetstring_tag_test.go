@@ -6,7 +6,6 @@ import (
 )
 
 // Test for issue: Decoding fails for []byte fields with octetstring tag
-// https://github.com/limecodeswe/asn1/issues/XXX
 
 func TestOctetStringWithTag(t *testing.T) {
 	type TestStruct struct {
