@@ -673,11 +673,14 @@ func unmarshalStruct(obj ASN1Object, v reflect.Value, opts *MarshalOptions) erro
 		}
 
 		element := elements[elementIndex]
-		elementIndex++
 
 		// Handle context-specific tags
 		if info.HasTag && opts.UseContextTags {
+			// Check if the tag matches before consuming the element
 			if element.Tag().Class == 2 && element.Tag().Number == info.Tag {
+				// Tag matches, consume the element
+				elementIndex++
+
 				if info.Explicit {
 					// EXPLICIT tagging: unwrap to get the inner element
 					if wrapped, ok := element.(*ASN1Structured); ok {
@@ -690,7 +693,19 @@ func unmarshalStruct(obj ASN1Object, v reflect.Value, opts *MarshalOptions) erro
 					// IMPLICIT tagging: restore the original tag
 					element = restoreTag(element, info.Type)
 				}
+			} else {
+				// Tag doesn't match
+				if info.Optional {
+					// Optional field not present, skip without consuming element
+					continue
+				}
+				// Required field with wrong tag - this is an error
+				return fmt.Errorf("field %s: expected tag [CONTEXT %d], got %s", 
+					fieldType.Name, info.Tag, element.Tag().TagString())
 			}
+		} else {
+			// No specific tag expected, consume the element
+			elementIndex++
 		}
 
 		// Unmarshal the element
@@ -1007,6 +1022,11 @@ func restoreTag(obj ASN1Object, asn1Type string) ASN1Object {
 		constructed = true
 	case "set":
 		tagNum = TagSet
+		constructed = true
+	case "choice":
+		// For CHOICE types, we need to restore to a SEQUENCE tag
+		// since the choice struct is represented as a SEQUENCE with one alternative
+		tagNum = TagSequence
 		constructed = true
 	default:
 		// Unknown type, return as-is
