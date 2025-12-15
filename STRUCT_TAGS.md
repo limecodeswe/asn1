@@ -252,26 +252,103 @@ opts := &asn1.MarshalOptions{
 encoded, err := asn1.MarshalWithOptions(data, opts)
 ```
 
-### Methods on Structs
+### Custom Marshaler/Unmarshaler Interfaces
 
-You can add convenience methods to your structs:
+For types that require custom encoding logic (like TBCD for phone numbers, packed formats, or multi-byte structures), you can implement the `ASN1Marshaler` and `ASN1Unmarshaler` interfaces:
 
 ```go
-type Document struct {
-    ID    int64  `asn1:"integer"`
-    Title string `asn1:"utf8string"`
+// ASN1Marshaler allows types to provide custom ASN.1 encoding
+type ASN1Marshaler interface {
+    MarshalASN1() ([]byte, error)
 }
 
-func (d *Document) MarshalASN1() ([]byte, error) {
-    return asn1.Marshal(d)
-}
-
-func (d *Document) UnmarshalASN1(data []byte) error {
-    return asn1.Unmarshal(data, d)
+// ASN1Unmarshaler allows types to provide custom ASN.1 decoding
+type ASN1Unmarshaler interface {
+    UnmarshalASN1([]byte) error
 }
 ```
 
+#### Example: TBCD-Encoded Phone Number
 
+Telecom protocols often use TBCD (Telephony Binary Coded Decimal) encoding for phone numbers:
+
+```go
+type ISDNAddressString struct {
+    Nature        NatureOfAddress
+    NumberingPlan NumberingPlan
+    Digits        string
+}
+
+// MarshalASN1 implements custom TBCD encoding
+func (a *ISDNAddressString) MarshalASN1() ([]byte, error) {
+    // Encode digits as TBCD (nibble-swapped BCD)
+    tbcdDigits, err := encodeTBCD(a.Digits)
+    if err != nil {
+        return nil, err
+    }
+    
+    // First byte contains nature and numbering plan
+    firstByte := (byte(a.Nature) << 4) | byte(a.NumberingPlan)
+    
+    return append([]byte{firstByte}, tbcdDigits...), nil
+}
+
+// UnmarshalASN1 implements custom TBCD decoding
+func (a *ISDNAddressString) UnmarshalASN1(data []byte) error {
+    if len(data) < 1 {
+        return fmt.Errorf("ISDN address too short")
+    }
+    
+    a.Nature = NatureOfAddress((data[0] >> 4) & 0x07)
+    a.NumberingPlan = NumberingPlan(data[0] & 0x0F)
+    a.Digits, _ = decodeTBCD(data[1:])
+    return nil
+}
+
+// Now use it seamlessly in structs with tags!
+type CallRecord struct {
+    ServiceKey        uint32            `asn1:"integer,tag:0"`
+    CalledPartyNumber ISDNAddressString `asn1:"octetstring,tag:2"`
+    CallingPartyNumber ISDNAddressString `asn1:"octetstring,tag:3"`
+}
+
+record := CallRecord{
+    ServiceKey: 123,
+    CalledPartyNumber: ISDNAddressString{
+        Nature:        NatureInternational,
+        NumberingPlan: NumberingE164,
+        Digits:        "12345678",
+    },
+    CallingPartyNumber: ISDNAddressString{
+        Nature:        NatureInternational,
+        NumberingPlan: NumberingE164,
+        Digits:        "87654321",
+    },
+}
+
+// Marshal and unmarshal work automatically with custom encoding
+encoded, _ := asn1.Marshal(&record)
+var decoded CallRecord
+asn1.Unmarshal(encoded, &decoded)
+```
+
+#### How Custom Marshalers Work
+
+1. **During Marshaling**: The library checks if a field implements `ASN1Marshaler` before applying type-based encoding. If found, it calls `MarshalASN1()` to get the raw bytes, then wraps them with the appropriate ASN.1 tag specified in the struct tag.
+
+2. **During Unmarshaling**: The library checks if a field implements `ASN1Unmarshaler`. If found, it extracts the raw value bytes (without the tag) and passes them to `UnmarshalASN1()`.
+
+3. **Works with All Features**: Custom marshalers work with optional fields, context-specific tags, explicit tagging, and all other struct tag features.
+
+#### When to Use Custom Marshalers
+
+Use custom marshalers when:
+- Your type uses specialized encoding (TBCD, packed formats, bit-level packing)
+- Multiple fields need to be encoded together in a specific format
+- Your encoding doesn't map cleanly to standard ASN.1 primitives
+- You need fine-grained control over the byte representation
+
+For simple structs that map to ASN.1 SEQUENCE, just use regular struct tags without custom marshalers.
 
 ## Error Handling
 
