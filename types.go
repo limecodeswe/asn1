@@ -78,6 +78,20 @@ func NewContextSpecificTag(number int, constructed bool) Tag {
 	}
 }
 
+// ASN1Marshaler is the interface implemented by types that can marshal themselves to ASN.1.
+// The MarshalASN1 method should return the raw ASN.1-encoded bytes of the value,
+// without any tag wrapping. The library will handle tag wrapping based on struct tags.
+type ASN1Marshaler interface {
+	MarshalASN1() ([]byte, error)
+}
+
+// ASN1Unmarshaler is the interface implemented by types that can unmarshal themselves from ASN.1.
+// The UnmarshalASN1 method receives the raw ASN.1-encoded bytes of the value,
+// without any tag wrapping. The library handles tag unwrapping before calling this method.
+type ASN1Unmarshaler interface {
+	UnmarshalASN1([]byte) error
+}
+
 // ASN1Object represents any ASN.1 object
 type ASN1Object interface {
 	// Encode returns the BER encoding of the object
