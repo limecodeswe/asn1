@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// PhoneNumber - simple custom type for testing slice elements
+// PhoneNumber - simple custom type for testing slice elements.
 type PhoneNumber struct {
 	Digits string
 }
