@@ -156,3 +156,77 @@ func TestOptionalChoiceSkippingBug(t *testing.T) {
 		t.Errorf("Expected ExtraField to be 99, got %d", decoded.ExtraField)
 	}
 }
+
+// TestOptionalChoiceRoundTrip tests the exact reproduction case from issue #6
+// This validates that optional choice fields work correctly for encoding and decoding
+func TestOptionalChoiceRoundTrip(t *testing.T) {
+	t.Run("nil optional choice field", func(t *testing.T) {
+		// Encode with LegID = nil (not present)
+		// Using BCSMEventWithChoice to test the choice tag specifically
+		orig := &BCSMEventWithChoice{
+			EventTypeBCSM: 1,
+			MonitorMode:   2,
+			LegID:         nil, // Optional field not present
+		}
+
+		encoded, err := Marshal(orig)
+		if err != nil {
+			t.Fatalf("Encoding failed: %v", err)
+		}
+
+		// Decode - this was failing with "expected ASN1Structured for struct, got *asn1.ASN1Value"
+		decoded := &BCSMEventWithChoice{}
+		err = Unmarshal(encoded, decoded)
+		if err != nil {
+			t.Fatalf("Decoding failed: %v", err)
+		}
+
+		if decoded.LegID != nil {
+			t.Error("Expected LegID to be nil")
+		}
+
+		// Verify other fields
+		if decoded.EventTypeBCSM != 1 {
+			t.Errorf("Expected EventTypeBCSM to be 1, got %d", decoded.EventTypeBCSM)
+		}
+		if decoded.MonitorMode != 2 {
+			t.Errorf("Expected MonitorMode to be 2, got %d", decoded.MonitorMode)
+		}
+	})
+
+	t.Run("present optional field with sequence tag", func(t *testing.T) {
+		// Using BCSMEvent with sequence tag since LegID is a regular struct
+		orig := &BCSMEvent{
+			EventTypeBCSM: 3,
+			MonitorMode:   4,
+			LegID:         &LegID{LegType: 5},
+		}
+
+		encoded, err := Marshal(orig)
+		if err != nil {
+			t.Fatalf("Encoding failed: %v", err)
+		}
+
+		// Decode
+		decoded := &BCSMEvent{}
+		err = Unmarshal(encoded, decoded)
+		if err != nil {
+			t.Fatalf("Decoding failed: %v", err)
+		}
+
+		if decoded.LegID == nil {
+			t.Fatal("Expected LegID to be non-nil")
+		}
+
+		if decoded.LegID.LegType != 5 {
+			t.Errorf("Expected LegType to be 5, got %d", decoded.LegID.LegType)
+		}
+
+		if decoded.EventTypeBCSM != 3 {
+			t.Errorf("Expected EventTypeBCSM to be 3, got %d", decoded.EventTypeBCSM)
+		}
+		if decoded.MonitorMode != 4 {
+			t.Errorf("Expected MonitorMode to be 4, got %d", decoded.MonitorMode)
+		}
+	})
+}
