@@ -110,33 +110,33 @@ type BCSMEventWithChoiceAndExtra struct {
 	ExtraField    uint8  `asn1:"integer,tag:3"`
 }
 
-// This should fail because when the optional field is skipped,
-// the elementIndex is still incremented, causing the next field to be skipped
+// TestOptionalChoiceSkippingBug verifies that when an optional field is not present,
+// the decoder correctly skips it and processes the next field
 func TestOptionalChoiceSkippingBug(t *testing.T) {
 	// Manually create encoded data with tags 0, 1, 3 (skipping tag 2)
 	seq := NewSequence()
-	
+
 	// EventTypeBCSM - tag 0
 	event := NewInteger(1)
 	eventTagged := replaceTag(event, 0)
 	seq.Add(eventTagged)
-	
+
 	// MonitorMode - tag 1
 	monitor := NewInteger(2)
 	monitorTagged := replaceTag(monitor, 1)
 	seq.Add(monitorTagged)
-	
+
 	// ExtraField - tag 3 (skipping tag 2)
 	extra := NewInteger(99)
 	extraTagged := replaceTag(extra, 3)
 	seq.Add(extraTagged)
-	
+
 	encoded, err := seq.Encode()
 	if err != nil {
 		t.Fatalf("Encoding failed: %v", err)
 	}
-	
-	// Try to decode - this should work but currently fails
+
+	// Decode - this should correctly skip the optional field and decode ExtraField
 	decoded := &BCSMEventWithChoiceAndExtra{}
 	err = Unmarshal(encoded, decoded)
 	if err != nil {

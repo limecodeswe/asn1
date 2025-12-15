@@ -680,7 +680,7 @@ func unmarshalStruct(obj ASN1Object, v reflect.Value, opts *MarshalOptions) erro
 			if element.Tag().Class == 2 && element.Tag().Number == info.Tag {
 				// Tag matches, consume the element
 				elementIndex++
-				
+
 				if info.Explicit {
 					// EXPLICIT tagging: unwrap to get the inner element
 					if wrapped, ok := element.(*ASN1Structured); ok {
