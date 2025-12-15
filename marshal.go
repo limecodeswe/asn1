@@ -363,17 +363,17 @@ func marshalSlice(v reflect.Value, opts *MarshalOptions) (ASN1Object, error) {
 	return seq, nil
 }
 
-// marshalTypedValue converts a Go value to a specific ASN.1 type based on the field info
-func marshalTypedValue(v reflect.Value, info *fieldInfo, opts *MarshalOptions) (ASN1Object, error) {
-	// Check if the value implements custom marshaler interface
-	// Try both the value and its pointer
+// tryCustomMarshal attempts to use a custom marshaler if the value implements ASN1Marshaler.
+// Returns (result, nil) if successful, (nil, error) if custom marshaler exists but fails,
+// or (nil, nil) if no custom marshaler is available.
+func tryCustomMarshal(v reflect.Value, info *fieldInfo) (ASN1Object, error) {
+	// Try both the value and its pointer receiver
 	if v.CanInterface() {
 		if m, ok := v.Interface().(ASN1Marshaler); ok {
 			rawBytes, err := m.MarshalASN1()
 			if err != nil {
 				return nil, fmt.Errorf("custom marshaler failed: %w", err)
 			}
-			// Wrap the raw bytes with the appropriate tag based on the field info
 			return wrapCustomMarshaledBytes(rawBytes, info)
 		}
 	}
@@ -385,9 +385,22 @@ func marshalTypedValue(v reflect.Value, info *fieldInfo, opts *MarshalOptions) (
 			if err != nil {
 				return nil, fmt.Errorf("custom marshaler failed: %w", err)
 			}
-			// Wrap the raw bytes with the appropriate tag based on the field info
 			return wrapCustomMarshaledBytes(rawBytes, info)
 		}
+	}
+	
+	return nil, nil
+}
+
+// marshalTypedValue converts a Go value to a specific ASN.1 type based on the field info
+func marshalTypedValue(v reflect.Value, info *fieldInfo, opts *MarshalOptions) (ASN1Object, error) {
+	// Check if the value implements custom marshaler interface
+	obj, err := tryCustomMarshal(v, info)
+	if err != nil {
+		return nil, err
+	}
+	if obj != nil {
+		return obj, nil
 	}
 
 	// Handle pointer types
@@ -524,12 +537,13 @@ func extractRawBytes(obj ASN1Object) ([]byte, error) {
 	case *ASN1OctetString:
 		return o.Value(), nil
 	case *ASN1Integer:
-		// For integers, encode the value as bytes
+		// For integers, we need the raw encoded value bytes (not the TLV structure)
+		// We encode then decode to extract just the value portion
 		encoded, err := o.Encode()
 		if err != nil {
 			return nil, err
 		}
-		// Decode TLV to get just the value part
+		// Decode TLV to get just the value part (skips tag and length)
 		val, _, err := DecodeTLV(encoded)
 		if err != nil {
 			return nil, err
@@ -542,6 +556,7 @@ func extractRawBytes(obj ASN1Object) ([]byte, error) {
 	case *ASN1IA5String:
 		return []byte(o.Value()), nil
 	case *ASN1Boolean:
+		// ASN.1 BOOLEAN encoding: 0x00 = false, 0xFF (or any non-zero) = true
 		if o.Value() {
 			return []byte{0xFF}, nil
 		}

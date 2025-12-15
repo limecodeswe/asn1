@@ -58,6 +58,7 @@ func (a *ISDNAddressString) UnmarshalASN1(data []byte) error {
 
 // encodeTBCD converts decimal digits to TBCD format (nibble-swapped BCD)
 func encodeTBCD(digits string) ([]byte, error) {
+	// Calculate bytes needed: each byte stores 2 digits, so (len+1)/2 handles odd lengths
 	result := make([]byte, (len(digits)+1)/2)
 	
 	for i := 0; i < len(digits); i++ {
