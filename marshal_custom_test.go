@@ -408,3 +408,123 @@ func TestCustomMarshalerErrors(t *testing.T) {
 		t.Error("Expected error for invalid digits, got nil")
 	}
 }
+
+// Test custom types with optional fields
+type StructWithOptionalCustom struct {
+	Required       string             `asn1:"utf8string"`
+	OptionalCustom *ISDNAddressString `asn1:"octetstring,optional,tag:0"`
+	OptionalStd    *int64             `asn1:"integer,optional,tag:1"`
+}
+
+func TestOptionalCustomFields(t *testing.T) {
+	// Test with both fields present
+	phone := ISDNAddressString{
+		Nature:        NatureInternational,
+		NumberingPlan: NumberingE164,
+		Digits:        "123456",
+	}
+	opt := int64(99)
+	original := &StructWithOptionalCustom{
+		Required:       "test",
+		OptionalCustom: &phone,
+		OptionalStd:    &opt,
+	}
+	
+	encoded, err := Marshal(original)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	
+	t.Logf("Encoded with both optional fields: %d bytes", len(encoded))
+	
+	var decoded StructWithOptionalCustom
+	if err := Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+	
+	if decoded.Required != original.Required {
+		t.Errorf("Required mismatch: got %q, want %q", decoded.Required, original.Required)
+	}
+	if decoded.OptionalCustom == nil {
+		t.Error("OptionalCustom should not be nil")
+	} else if decoded.OptionalCustom.Digits != original.OptionalCustom.Digits {
+		t.Errorf("OptionalCustom.Digits mismatch: got %q, want %q", 
+			decoded.OptionalCustom.Digits, original.OptionalCustom.Digits)
+	}
+	if decoded.OptionalStd == nil || *decoded.OptionalStd != *original.OptionalStd {
+		t.Errorf("OptionalStd mismatch: got %v, want %v", decoded.OptionalStd, original.OptionalStd)
+	}
+	
+	// Test with optional fields missing
+	originalNoOpt := &StructWithOptionalCustom{
+		Required: "test only",
+	}
+	
+	encodedNoOpt, err := Marshal(originalNoOpt)
+	if err != nil {
+		t.Fatalf("Marshal without optional fields failed: %v", err)
+	}
+	
+	t.Logf("Encoded without optional fields: %d bytes", len(encodedNoOpt))
+	
+	var decodedNoOpt StructWithOptionalCustom
+	if err := Unmarshal(encodedNoOpt, &decodedNoOpt); err != nil {
+		t.Fatalf("Unmarshal without optional fields failed: %v", err)
+	}
+	
+	if decodedNoOpt.Required != originalNoOpt.Required {
+		t.Errorf("Required mismatch: got %q, want %q", decodedNoOpt.Required, originalNoOpt.Required)
+	}
+	if decodedNoOpt.OptionalCustom != nil {
+		t.Error("OptionalCustom should be nil")
+	}
+	if decodedNoOpt.OptionalStd != nil {
+		t.Error("OptionalStd should be nil")
+	}
+}
+
+// Test custom marshaling with explicit tagging
+type StructWithExplicitCustom struct {
+	ID         int64             `asn1:"integer"`
+	CustomExpl ISDNAddressString `asn1:"octetstring,explicit,tag:5"`
+	Name       string            `asn1:"utf8string"`
+}
+
+func TestCustomMarshalerExplicitTagging(t *testing.T) {
+	original := &StructWithExplicitCustom{
+		ID: 42,
+		CustomExpl: ISDNAddressString{
+			Nature:        NatureInternational,
+			NumberingPlan: NumberingE164,
+			Digits:        "999",
+		},
+		Name: "test",
+	}
+	
+	encoded, err := Marshal(original)
+	if err != nil {
+		t.Fatalf("Marshal with explicit tagging failed: %v", err)
+	}
+	
+	t.Logf("Encoded with explicit tagging: %d bytes: %02X", len(encoded), encoded)
+	
+	var decoded StructWithExplicitCustom
+	if err := Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("Unmarshal with explicit tagging failed: %v", err)
+	}
+	
+	if decoded.ID != original.ID {
+		t.Errorf("ID mismatch: got %d, want %d", decoded.ID, original.ID)
+	}
+	if decoded.CustomExpl.Digits != original.CustomExpl.Digits {
+		t.Errorf("CustomExpl.Digits mismatch: got %q, want %q", 
+			decoded.CustomExpl.Digits, original.CustomExpl.Digits)
+	}
+	if decoded.CustomExpl.Nature != original.CustomExpl.Nature {
+		t.Errorf("CustomExpl.Nature mismatch: got %v, want %v", 
+			decoded.CustomExpl.Nature, original.CustomExpl.Nature)
+	}
+	if decoded.Name != original.Name {
+		t.Errorf("Name mismatch: got %q, want %q", decoded.Name, original.Name)
+	}
+}
